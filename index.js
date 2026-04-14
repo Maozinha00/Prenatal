@@ -15,6 +15,10 @@ const fs = require("fs");
 const client = new Client({
   intents: [GatewayIntentBits.Guilds]
 });
+const TOKEN = "MTQ5MjU1ODkyNDM2MzA3MTc4OQ.Gjdnob.e4uabOe63RanoFa1Qfrawcw_bbaJMrTgkBjEDs";
+
+const CATEGORY_ID = "1492387782394515466";
+const LOG_CHANNEL_ID = "1477683906642706506";
 
 // ===== BANCO =====
 function loadDB() {
