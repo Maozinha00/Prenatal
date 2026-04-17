@@ -21,7 +21,7 @@ const TOKEN = process.env.TOKEN;
 const CATEGORY_ID = "1492387782394515466";
 const ACAO_CHANNEL_ID = "1477683906642706507";
 
-// ================= DATABASE =================
+// ================= DB =================
 function loadDB() {
   try {
     if (!fs.existsSync("database.json")) return {};
@@ -40,7 +40,7 @@ client.once("ready", () => {
   console.log(`🏥 Hospital ONLINE: ${client.user.tag}`);
 });
 
-// ================= EVENTS =================
+// ================= INTERAÇÕES =================
 client.on("interactionCreate", async (interaction) => {
 
   // ================= PAINEL =================
@@ -79,10 +79,10 @@ client.on("interactionCreate", async (interaction) => {
         new TextInputBuilder().setCustomId("rg").setLabel("RG").setStyle(TextInputStyle.Short)
       ),
       new ActionRowBuilder().addComponents(
-        new TextInputBuilder().setCustomId("bebes").setLabel("Quantidade de bebês").setStyle(TextInputStyle.Short)
+        new TextInputBuilder().setCustomId("bebes").setLabel("Qtd bebês").setStyle(TextInputStyle.Short)
       ),
       new ActionRowBuilder().addComponents(
-        new TextInputBuilder().setCustomId("sexo").setLabel("Sexo do bebê").setStyle(TextInputStyle.Short)
+        new TextInputBuilder().setCustomId("sexo").setLabel("Sexo bebê").setStyle(TextInputStyle.Short)
       ),
       new ActionRowBuilder().addComponents(
         new TextInputBuilder().setCustomId("bebeNome").setLabel("Nome do bebê").setStyle(TextInputStyle.Short)
@@ -143,7 +143,7 @@ client.on("interactionCreate", async (interaction) => {
     return interaction.editReply({ content: "✅ Paciente cadastrada com sucesso!" });
   }
 
-  // ================= CONSULTA MODAL =================
+  // ================= CONSULTA =================
   if (interaction.isButton() && interaction.customId.startsWith("consulta_")) {
 
     const id = interaction.customId.split("_")[1];
@@ -156,7 +156,7 @@ client.on("interactionCreate", async (interaction) => {
       new ActionRowBuilder().addComponents(
         new TextInputBuilder()
           .setCustomId("sintomas")
-          .setLabel("Sintomas da paciente")
+          .setLabel("Sintomas")
           .setStyle(TextInputStyle.Paragraph)
       )
     );
@@ -164,7 +164,7 @@ client.on("interactionCreate", async (interaction) => {
     return interaction.showModal(modal);
   }
 
-  // ================= CONSULTA + PRONTUÁRIO EVOLUTIVO =================
+  // ================= FINAL CONSULTA =================
   if (interaction.isModalSubmit() && interaction.customId.startsWith("consulta_")) {
 
     await interaction.deferReply({ ephemeral: true });
@@ -172,11 +172,13 @@ client.on("interactionCreate", async (interaction) => {
     const id = interaction.customId.split("_")[1];
     const db = loadDB();
 
-    db[id].consultas.push({
+    const consulta = {
       data: new Date().toLocaleDateString(),
       hora: new Date().toLocaleTimeString(),
       sintomas: interaction.fields.getTextInputValue("sintomas")
-    });
+    };
+
+    db[id].consultas.push(consulta);
 
     const total = db[id].consultas.length;
 
@@ -189,11 +191,12 @@ client.on("interactionCreate", async (interaction) => {
 
     let sintomasHistorico = "";
     db[id].consultas.forEach((c, i) => {
-      sintomasHistorico += `\n${i + 1}º Consulta: ${c.sintomas}`;
+      sintomasHistorico += `\n${i + 1}º Consulta - ${c.data} ${c.hora}: ${c.sintomas}`;
     });
 
     const exame = `
-# 🤰📋 CHECK-IN PRÉ-NATAL 📋🤰
+# 🤰📋 PRÉ-NATAL EVOLUTIVO
+
 
 ## 👩 PACIENTE
 
@@ -211,13 +214,13 @@ client.on("interactionCreate", async (interaction) => {
 
 ---
 
-## 💕 EVOLUÇÃO (1–17)
+## 📊 CONSULTAS (1–17)
 
 ${lista}
 
 ---
 
-## 🩺 SINTOMAS
+## 🩺 HISTÓRICO
 
 ${sintomasHistorico}
 
@@ -237,7 +240,7 @@ ${sintomasHistorico}
     }
 
     return interaction.editReply({
-      content: `✅ Consulta ${total}/17 registrada com prontuário atualizado!`
+      content: `✅ Consulta ${total}/17 registrada com sucesso!`
     });
   }
 
@@ -265,13 +268,12 @@ ${sintomasHistorico}
     const relatorio = `
 # 🏥🤱 RELATÓRIO DE PARTO FINAL
 
----
 
 ## 👶 NASCIMENTO
 
 👶 Bebê: ${paciente.bebeNome}  
-📅 Data do parto: ${data}  
-⏰ Hora do parto: ${hora}  
+📅 Data: ${data}  
+⏰ Hora: ${hora}  
 
 ---
 
@@ -306,8 +308,25 @@ ${lista}
       await canal.send(relatorio);
     }
 
+    // ================= REMOVE BOTÃO DO PAINEL =================
+    const canalAcoes = interaction.guild.channels.cache.get(ACAO_CHANNEL_ID);
+
+    if (canalAcoes) {
+      const msgs = await canalAcoes.messages.fetch({ limit: 50 });
+
+      const msg = msgs.find(m =>
+        m.components?.some(row =>
+          row.components?.some(b => b.customId === `consulta_${id}`)
+        )
+      );
+
+      if (msg) {
+        await msg.edit({ components: [] });
+      }
+    }
+
     return interaction.reply({
-      content: "🏥 Parto registrado com sucesso!",
+      content: "🏥 Parto finalizado com sucesso!",
       ephemeral: true
     });
   }
