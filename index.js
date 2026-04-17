@@ -16,7 +16,7 @@ const client = new Client({
   intents: [GatewayIntentBits.Guilds]
 });
 
-const TOKEN = "SEU_TOKEN";
+const TOKEN = "MTQ5MjU1ODkyNDM2MzA3MTc4OQ.G4y-cY.TwWhsZBA5bKPOaydoqCxrtUX4Epz4ANRlPDDHE";
 const CATEGORY_ID = "1492387782394515466";
 const LOG_CHANNEL_ID = "1477683906642706506";
 
