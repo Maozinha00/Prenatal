@@ -272,14 +272,16 @@ ${lista}
 ✔️ Atendimento finalizado com sucesso
 `;
 
-    const canal = interaction.guild.channels.cache.find(c =>
-      c.name.includes(paciente.nome)
-    );
+// pega todos os canais e acha o recém-criado com segurança
+const canal = interaction.guild.channels.cache.find(
+  c => c.name === `🩺-${db[id].nome}`
+);
 
-    if (canal) {
-      await canal.send(relatorio);
-    }
-
+if (canal) {
+  await canal.send(exame);
+} else {
+  console.log("❌ Canal não encontrado para enviar exame");
+}
     return interaction.reply({
       content: "🏥 Relatório de parto gerado com sucesso!",
       ephemeral: true
