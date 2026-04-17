@@ -45,6 +45,7 @@ client.on("interactionCreate", async (interaction) => {
   // /painel
   if (interaction.isChatInputCommand()) {
     if (interaction.commandName === "painel") {
+
       const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
           .setCustomId("iniciar")
@@ -71,7 +72,16 @@ client.on("interactionCreate", async (interaction) => {
         new TextInputBuilder().setCustomId("nome").setLabel("Nome").setStyle(TextInputStyle.Short)
       ),
       new ActionRowBuilder().addComponents(
-        new TextInputBuilder().setCustomId("rg").setLabel("Documento").setStyle(TextInputStyle.Short)
+        new TextInputBuilder().setCustomId("idade").setLabel("Idade").setStyle(TextInputStyle.Short)
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder().setCustomId("rg").setLabel("RG").setStyle(TextInputStyle.Short)
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder().setCustomId("bebes").setLabel("Qtd bebês (1 ou 2)").setStyle(TextInputStyle.Short)
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder().setCustomId("sexo").setLabel("Sexo bebê").setStyle(TextInputStyle.Short)
       )
     );
 
@@ -88,7 +98,10 @@ client.on("interactionCreate", async (interaction) => {
 
     db[id] = {
       nome: interaction.fields.getTextInputValue("nome"),
+      idade: interaction.fields.getTextInputValue("idade"),
       rg: interaction.fields.getTextInputValue("rg"),
+      bebes: interaction.fields.getTextInputValue("bebes"),
+      sexo: interaction.fields.getTextInputValue("sexo"),
       consultas: []
     };
 
@@ -116,24 +129,19 @@ client.on("interactionCreate", async (interaction) => {
       });
     }
 
-    await canal.send(`📋 Prontuário criado para ${db[id].nome}`);
-
     return interaction.editReply({ content: "✅ Paciente registrada!" });
   }
 
-  // ===== CONSULTA ETAPA 1 =====
+  // CONSULTA 1
   if (interaction.isButton() && interaction.customId.startsWith("consulta_")) {
 
     const id = interaction.customId.split("_")[1];
 
     const modal = new ModalBuilder()
       .setCustomId(`consulta1_${id}`)
-      .setTitle("📋 Dados e Gestação");
+      .setTitle("📋 Dados da Consulta");
 
     modal.addComponents(
-      new ActionRowBuilder().addComponents(
-        new TextInputBuilder().setCustomId("nascimento").setLabel("Data nascimento").setStyle(TextInputStyle.Short)
-      ),
       new ActionRowBuilder().addComponents(
         new TextInputBuilder().setCustomId("dum").setLabel("DUM").setStyle(TextInputStyle.Short)
       ),
@@ -145,64 +153,6 @@ client.on("interactionCreate", async (interaction) => {
       ),
       new ActionRowBuilder().addComponents(
         new TextInputBuilder().setCustomId("altura").setLabel("Altura").setStyle(TextInputStyle.Short)
-      )
-    );
-
-    return interaction.showModal(modal);
-  }
-
-  // ===== SALVAR ETAPA 1 =====
-  if (interaction.isModalSubmit() && interaction.customId.startsWith("consulta1_")) {
-
-    await interaction.deferReply({ ephemeral: true });
-
-    const id = interaction.customId.split("_")[1];
-    const db = loadDB();
-
-    db[id].temp = {
-      nascimento: interaction.fields.getTextInputValue("nascimento"),
-      dum: interaction.fields.getTextInputValue("dum"),
-      idade_gestacional: interaction.fields.getTextInputValue("idade_gestacional"),
-      peso: interaction.fields.getTextInputValue("peso"),
-      altura: interaction.fields.getTextInputValue("altura")
-    };
-
-    saveDB(db);
-
-    const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId(`continuar_${id}`)
-        .setLabel("➡️ Continuar")
-        .setStyle(ButtonStyle.Success)
-    );
-
-    return interaction.editReply({
-      content: "✅ Primeira parte salva",
-      components: [row]
-    });
-  }
-
-  // ===== ABRIR ETAPA 2 =====
-  if (interaction.isButton() && interaction.customId.startsWith("continuar_")) {
-
-    const id = interaction.customId.split("_")[1];
-
-    const modal = new ModalBuilder()
-      .setCustomId(`consulta2_${id}`)
-      .setTitle("🧪 Exames e Sintomas");
-
-    modal.addComponents(
-      new ActionRowBuilder().addComponents(
-        new TextInputBuilder().setCustomId("gravida").setLabel("Grávida (Sim/Não)").setStyle(TextInputStyle.Short)
-      ),
-      new ActionRowBuilder().addComponents(
-        new TextInputBuilder().setCustomId("primeira").setLabel("Primeira gestação").setStyle(TextInputStyle.Short)
-      ),
-      new ActionRowBuilder().addComponents(
-        new TextInputBuilder().setCustomId("gestacoes").setLabel("Gestações anteriores").setStyle(TextInputStyle.Short)
-      ),
-      new ActionRowBuilder().addComponents(
-        new TextInputBuilder().setCustomId("partos").setLabel("Partos anteriores").setStyle(TextInputStyle.Short)
       ),
       new ActionRowBuilder().addComponents(
         new TextInputBuilder().setCustomId("sintomas").setLabel("Sintomas").setStyle(TextInputStyle.Paragraph)
@@ -212,60 +162,68 @@ client.on("interactionCreate", async (interaction) => {
     return interaction.showModal(modal);
   }
 
-  // ===== FINAL CONSULTA =====
-  if (interaction.isModalSubmit() && interaction.customId.startsWith("consulta2_")) {
+  // FINAL CONSULTA
+  if (interaction.isModalSubmit() && interaction.customId.startsWith("consulta1_")) {
 
     await interaction.deferReply({ ephemeral: true });
 
     const id = interaction.customId.split("_")[1];
     const db = loadDB();
 
-    const base = db[id].temp;
-
-    const final = {
-      ...base,
-      gravida: interaction.fields.getTextInputValue("gravida"),
-      primeira: interaction.fields.getTextInputValue("primeira"),
-      gestacoes: interaction.fields.getTextInputValue("gestacoes"),
-      partos: interaction.fields.getTextInputValue("partos"),
-      sintomas: interaction.fields.getTextInputValue("sintomas")
-    };
-
-    delete db[id].temp;
-
-    db[id].consultas.push(final);
+    db[id].consultas.push(new Date().toLocaleDateString());
     saveDB(db);
 
-    const canal = interaction.guild.channels.cache.find(c => c.name.includes(db[id].nome));
+    let lista = "";
+    for (let i = 1; i <= 17; i++) {
+      lista += `${db[id].consultas[i-1] ? "✅" : "⬜"} ${i}º Pré-natal\n`;
+    }
 
-    if (canal) {
-      canal.send(`
+    const ficha = `
 # 🤰📋 CHECK-IN DE PRÉ-NATAL 📋🤰
 
-👩 Nome: ${db[id].nome}
+## 👩 DADOS DA PACIENTE
+
+👩 Nome da mamãe: ${db[id].nome}
+🎂 Idade: ${db[id].idade}
 🆔 RG: ${db[id].rg}
 
-📅 ${new Date().toLocaleDateString()}
-👨‍⚕️ ${interaction.user}
+👶 Quantidade de bebês:
+${db[id].bebes == "2" ? "⬜ 1 bebê\n✅ 2 bebês" : "✅ 1 bebê\n⬜ 2 bebês"}
+
+🚻 Sexo:
+${db[id].sexo === "Menina" ? "⬜ Menino\n✅ Menina" :
+  db[id].sexo === "Menino" ? "✅ Menino\n⬜ Menina" :
+  "⬜ Menino\n⬜ Menina"}
+
+📅 Data: ${new Date().toLocaleDateString()}
+⏰ Horário: ${new Date().toLocaleTimeString()}
+👨‍⚕️ Médico: ${interaction.user}
 
 ---
 
-🤰 Grávida: ${final.gravida}
-📅 DUM: ${final.dum}
-📊 Idade gestacional: ${final.idade_gestacional}
-⚖️ Peso: ${final.peso}
-📏 Altura: ${final.altura}
+## 💕 ACOMPANHAMENTO DAS CONSULTAS
 
-👶 Primeira gestação: ${final.primeira}
-📊 Gestações: ${final.gestacoes}
-🏥 Partos: ${final.partos}
+${lista}
 
-⚠️ Sintomas:
-${final.sintomas}
-`);
-    }
+---
 
-    // REMOVE BOTÃO DO CANAL DE AÇÕES
+## 🏥 DADOS DO PARTO
+
+📅 Dia do parto:
+⏰ Horário:
+👨‍⚕️ Médicos:
+
+---
+
+## ⚠️ SINTOMAS
+
+${interaction.fields.getTextInputValue("sintomas")}
+`;
+
+    const canal = interaction.guild.channels.cache.find(c => c.name.includes(db[id].nome));
+    if (canal) canal.send(ficha);
+
+    // REMOVE BOTÃO
     const canalAcoes = interaction.guild.channels.cache.get(ACAO_CHANNEL_ID);
     if (canalAcoes) {
       const msgs = await canalAcoes.messages.fetch({ limit: 50 });
@@ -274,7 +232,7 @@ ${final.sintomas}
     }
 
     return interaction.editReply({
-      content: "✅ Consulta finalizada!"
+      content: "✅ Consulta registrada!"
     });
   }
 
