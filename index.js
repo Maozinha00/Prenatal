@@ -21,7 +21,7 @@ const TOKEN = process.env.TOKEN;
 const CATEGORY_ID = "1492387782394515466";
 const ACAO_CHANNEL_ID = "1477683906642706507";
 
-// ===== BANCO =====
+// ================= DATABASE =================
 function loadDB() {
   try {
     if (!fs.existsSync("database.json")) return {};
@@ -35,14 +35,15 @@ function saveDB(data) {
   fs.writeFileSync("database.json", JSON.stringify(data, null, 2));
 }
 
+// ================= READY =================
 client.once("ready", () => {
   console.log(`🏥 Hospital ONLINE: ${client.user.tag}`);
 });
 
-// ===== INTERAÇÕES =====
+// ================= INTERAÇÕES =================
 client.on("interactionCreate", async (interaction) => {
 
-  // PAINEL
+  // ===== PAINEL =====
   if (interaction.isChatInputCommand()) {
     if (interaction.commandName === "painel") {
 
@@ -60,7 +61,7 @@ client.on("interactionCreate", async (interaction) => {
     }
   }
 
-  // INICIAR PACIENTE
+  // ===== INICIAR PACIENTE =====
   if (interaction.isButton() && interaction.customId === "iniciar") {
 
     const modal = new ModalBuilder()
@@ -88,7 +89,7 @@ client.on("interactionCreate", async (interaction) => {
     return interaction.showModal(modal);
   }
 
-  // SALVAR PACIENTE
+  // ===== SALVAR PACIENTE =====
   if (interaction.isModalSubmit() && interaction.customId === "inicio") {
 
     await interaction.deferReply({ ephemeral: true });
@@ -96,29 +97,30 @@ client.on("interactionCreate", async (interaction) => {
     const db = loadDB();
     const id = Date.now().toString();
 
+    const canalCriado = await interaction.guild.channels.create({
+      name: `🩺-${interaction.fields.getTextInputValue("nome")}`,
+      type: ChannelType.GuildText,
+      parent: CATEGORY_ID
+    });
+
     db[id] = {
       nome: interaction.fields.getTextInputValue("nome"),
       idade: interaction.fields.getTextInputValue("idade"),
       rg: interaction.fields.getTextInputValue("rg"),
       bebes: interaction.fields.getTextInputValue("bebes"),
       sexo: interaction.fields.getTextInputValue("sexo"),
-      consultas: []
+      consultas: [],
+      channelId: canalCriado.id
     };
 
     saveDB(db);
-
-    await interaction.guild.channels.create({
-      name: `🩺-${db[id].nome}`,
-      type: ChannelType.GuildText,
-      parent: CATEGORY_ID
-    });
 
     const canalAcoes = interaction.guild.channels.cache.get(ACAO_CHANNEL_ID);
 
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId(`consulta_${id}`)
-        .setLabel(`➕ Consulta - ${db[id].nome}`)
+        .setLabel("➕ Consulta")
         .setStyle(ButtonStyle.Primary),
 
       new ButtonBuilder()
@@ -137,7 +139,7 @@ client.on("interactionCreate", async (interaction) => {
     return interaction.editReply({ content: "✅ Paciente registrada!" });
   }
 
-  // CONSULTA
+  // ===== CONSULTA MODAL =====
   if (interaction.isButton() && interaction.customId.startsWith("consulta_")) {
 
     const id = interaction.customId.split("_")[1];
@@ -158,7 +160,7 @@ client.on("interactionCreate", async (interaction) => {
     return interaction.showModal(modal);
   }
 
-  // 🔥 FINAL CONSULTA + PRONTUÁRIO AUTOMÁTICO
+  // ================= CONSULTA + PRONTUÁRIO EVOLUTIVO =================
   if (interaction.isModalSubmit() && interaction.customId.startsWith("consulta_")) {
 
     await interaction.deferReply({ ephemeral: true });
@@ -166,61 +168,64 @@ client.on("interactionCreate", async (interaction) => {
     const id = interaction.customId.split("_")[1];
     const db = loadDB();
 
-    db[id].consultas.push(new Date().toLocaleDateString());
+    db[id].consultas.push({
+      data: new Date().toLocaleDateString(),
+      sintomas: interaction.fields.getTextInputValue("sintomas")
+    });
+
     const total = db[id].consultas.length;
 
     saveDB(db);
 
+    // ===== CHECKLIST 17 =====
     let lista = "";
     for (let i = 1; i <= 17; i++) {
       lista += `${db[id].consultas[i - 1] ? "✅" : "⬜"} ${i}º Pré-natal\n`;
     }
 
+    // ===== HISTÓRICO SINTOMAS =====
+    let sintomasHistorico = "";
+    db[id].consultas.forEach((c, index) => {
+      sintomasHistorico += `\n${index + 1}º Consulta: ${c.sintomas}`;
+    });
+
+    // ===== EXAME EVOLUTIVO =====
     const exame = `
-# 🤰📋 **CHECK-IN DE PRÉ-NATAL** 📋🤰
+# 🤰📋 CHECK-IN DE PRÉ-NATAL 📋🤰
 
 
-## 👩 **DADOS DA PACIENTE**
+## 👩 DADOS DA PACIENTE
 
-👩 **Nome da mamãe:** ${db[id].nome}  
-🎂 **Idade:** ${db[id].idade}  
-🆔 **RG:** ${db[id].rg}  
+👩 Nome: ${db[id].nome}  
+🎂 Idade: ${db[id].idade}  
+🆔 RG: ${db[id].rg}  
 
-👶 **Quantidade de bebês:**
-⬜ 1 bebê  
-⬜ 2 bebês  
-➡️ ${db[id].bebes}
+👶 Bebês: ${db[id].bebes}  
+🚻 Sexo: ${db[id].sexo}  
 
-🚻 **Sexo do(s) bebê(s):**
-➡️ ${db[id].sexo}
-
-📅 **Data:** ${new Date().toLocaleDateString()}  
-⏰ **Horário:** ${new Date().toLocaleTimeString()}  
-👨‍⚕️ **Médico responsável (pré-natal):** ${interaction.user}
+📅 Data: ${new Date().toLocaleDateString()}  
+⏰ Hora: ${new Date().toLocaleTimeString()}  
+👨‍⚕️ Médico: ${interaction.user}
 
 
-## 💕 **ACOMPANHAMENTO DAS CONSULTAS**
-
-📝 **Registros de pré-natal:**
+## 💕 EVOLUÇÃO DAS CONSULTAS
 
 ${lista}
 
 
-## 🏥✨ **DADOS DO PARTO**
+## 🩺 HISTÓRICO DE SINTOMAS
 
-📅 **Dia do parto:**  
-⏰ **Horário do parto:**  
-👨‍⚕️ **Médicos responsáveis:**  
+${sintomasHistorico}
 
 
-## ⚠️ **SINTOMAS DA CONSULTA**
+## 🏥 PARTO
 
-${interaction.fields.getTextInputValue("sintomas")}
+📅 Data do parto:  
+⏰ Hora do parto:  
+👨‍⚕️ Médicos responsáveis:  
 `;
 
-    const canal = interaction.guild.channels.cache.find(c =>
-      c.name.includes(db[id].nome)
-    );
+    const canal = interaction.guild.channels.cache.get(db[id].channelId);
 
     if (canal) {
       await canal.send(exame);
@@ -231,7 +236,7 @@ ${interaction.fields.getTextInputValue("sintomas")}
     });
   }
 
-  // 🏥 PARTO / RELATÓRIO FINAL
+  // ================= PARTO / RELATÓRIO FINAL =================
   if (interaction.isButton() && interaction.customId.startsWith("parto_")) {
 
     const id = interaction.customId.split("_")[1];
@@ -262,26 +267,22 @@ ${interaction.fields.getTextInputValue("sintomas")}
 
 ---
 
-## 📊 HISTÓRICO PRÉ-NATAL
+## 📊 PRÉ-NATAL
 
 ${lista}
 
 ---
 
 ## 🏥 STATUS
-✔️ Atendimento finalizado com sucesso
+✔️ Atendimento finalizado
 `;
 
-// pega todos os canais e acha o recém-criado com segurança
-const canal = interaction.guild.channels.cache.find(
-  c => c.name === `🩺-${db[id].nome}`
-);
+    const canal = interaction.guild.channels.cache.get(paciente.channelId);
 
-if (canal) {
-  await canal.send(exame);
-} else {
-  console.log("❌ Canal não encontrado para enviar exame");
-}
+    if (canal) {
+      await canal.send(relatorio);
+    }
+
     return interaction.reply({
       content: "🏥 Relatório de parto gerado com sucesso!",
       ephemeral: true
