@@ -16,12 +16,14 @@ const client = new Client({
   intents: [GatewayIntentBits.Guilds]
 });
 
+// 🔐 VARIÁVEIS (Railway)
 const TOKEN = process.env.TOKEN;
-const CATEGORY_ID = "1492387782394515466";
-const LOG_CHANNEL_ID = "1477683906642706506";
+const CATEGORY_ID = process.env.CATEGORY_ID;
+const LOG_CHANNEL_ID = process.env.LOG_CHANNEL_ID;
 
 // ===== BANCO =====
 function loadDB() {
+  if (!fs.existsSync("database.json")) return {};
   return JSON.parse(fs.readFileSync("database.json"));
 }
 
@@ -37,7 +39,7 @@ client.once("ready", () => {
 // ===== INTERAÇÃO =====
 client.on("interactionCreate", async (interaction) => {
 
-  // 🔘 COMANDO
+  // 🔘 COMANDO /painel
   if (interaction.isChatInputCommand()) {
     if (interaction.commandName === "painel") {
 
@@ -56,56 +58,59 @@ client.on("interactionCreate", async (interaction) => {
   }
 
   // 🟢 BOTÃO
-  if (interaction.isButton()) {
-    if (interaction.customId === "iniciar") {
+  if (interaction.isButton() && interaction.customId === "iniciar") {
 
-      const modal = new ModalBuilder()
-        .setCustomId("form1")
-        .setTitle("Dados da Paciente");
+    const modal = new ModalBuilder()
+      .setCustomId("form1")
+      .setTitle("Dados da Paciente");
 
-      modal.addComponents(
-        new ActionRowBuilder().addComponents(
-          new TextInputBuilder()
-            .setCustomId("nome")
-            .setLabel("Nome da paciente")
-            .setStyle(TextInputStyle.Short)
-        ),
-        new ActionRowBuilder().addComponents(
-          new TextInputBuilder()
-            .setCustomId("rg")
-            .setLabel("RG / Documento")
-            .setStyle(TextInputStyle.Short)
-        ),
-        new ActionRowBuilder().addComponents(
-          new TextInputBuilder()
-            .setCustomId("nascimento")
-            .setLabel("Data de nascimento")
-            .setStyle(TextInputStyle.Short)
-        ),
-        new ActionRowBuilder().addComponents(
-          new TextInputBuilder()
-            .setCustomId("acompanhante")
-            .setLabel("Nome do acompanhante")
-            .setStyle(TextInputStyle.Short)
-        )
-      );
+    modal.addComponents(
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("nome")
+          .setLabel("Nome da paciente")
+          .setStyle(TextInputStyle.Short)
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("rg")
+          .setLabel("RG / Documento")
+          .setStyle(TextInputStyle.Short)
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("nascimento")
+          .setLabel("Data de nascimento")
+          .setStyle(TextInputStyle.Short)
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("acompanhante")
+          .setLabel("Nome do acompanhante")
+          .setStyle(TextInputStyle.Short)
+      )
+    );
 
-      return interaction.showModal(modal);
-    }
+    return interaction.showModal(modal);
   }
 
   // 🧾 FORM 1
   if (interaction.isModalSubmit() && interaction.customId === "form1") {
 
-    const data = {
+    const db = loadDB();
+    const id = Date.now().toString();
+
+    db[id] = {
       nome: interaction.fields.getTextInputValue("nome"),
       rg: interaction.fields.getTextInputValue("rg"),
       nascimento: interaction.fields.getTextInputValue("nascimento"),
       acompanhante: interaction.fields.getTextInputValue("acompanhante")
     };
 
+    saveDB(db);
+
     const modal = new ModalBuilder()
-      .setCustomId(`form2_${JSON.stringify(data)}`)
+      .setCustomId(`form2_${id}`)
       .setTitle("Gestação");
 
     modal.addComponents(
@@ -117,7 +122,7 @@ client.on("interactionCreate", async (interaction) => {
       ),
       new ActionRowBuilder().addComponents(
         new TextInputBuilder()
-          .setCustomId("idade_gestacional")
+          .setCustomId("idade")
           .setLabel("Idade gestacional")
           .setStyle(TextInputStyle.Short)
       ),
@@ -141,18 +146,21 @@ client.on("interactionCreate", async (interaction) => {
   // 🧾 FORM 2
   if (interaction.isModalSubmit() && interaction.customId.startsWith("form2_")) {
 
-    const baseData = JSON.parse(interaction.customId.replace("form2_", ""));
+    const id = interaction.customId.split("_")[1];
+    const db = loadDB();
 
-    const data = {
-      ...baseData,
+    db[id] = {
+      ...db[id],
       dum: interaction.fields.getTextInputValue("dum"),
-      idade: interaction.fields.getTextInputValue("idade_gestacional"),
+      idade: interaction.fields.getTextInputValue("idade"),
       peso: interaction.fields.getTextInputValue("peso"),
       altura: interaction.fields.getTextInputValue("altura")
     };
 
+    saveDB(db);
+
     const modal = new ModalBuilder()
-      .setCustomId(`form3_${JSON.stringify(data)}`)
+      .setCustomId(`form3_${id}`)
       .setTitle("Sintomas");
 
     modal.addComponents(
@@ -188,19 +196,22 @@ client.on("interactionCreate", async (interaction) => {
   // 🧾 FINAL
   if (interaction.isModalSubmit() && interaction.customId.startsWith("form3_")) {
 
-    const data = JSON.parse(interaction.customId.replace("form3_", ""));
+    const id = interaction.customId.split("_")[1];
+    const db = loadDB();
 
-    const final = {
-      ...data,
+    db[id] = {
+      ...db[id],
       dor: interaction.fields.getTextInputValue("dor"),
       nausea: interaction.fields.getTextInputValue("nausea"),
       sangramento: interaction.fields.getTextInputValue("sangramento"),
       doenca: interaction.fields.getTextInputValue("doenca")
     };
 
-    const db = loadDB();
+    saveDB(db);
 
-    let canal = await interaction.guild.channels.create({
+    const final = db[id];
+
+    const canal = await interaction.guild.channels.create({
       name: `prenatal-${final.nome}`,
       type: ChannelType.GuildText,
       parent: CATEGORY_ID
@@ -231,13 +242,13 @@ client.on("interactionCreate", async (interaction) => {
 📅 Data: ${new Date().toLocaleDateString()}
 `;
 
-    canal.send(relatorio);
+    await canal.send(relatorio);
 
     const log = interaction.guild.channels.cache.get(LOG_CHANNEL_ID);
     if (log) log.send(relatorio);
 
     return interaction.reply({
-      content: "✅ Ficha completa registrada!",
+      content: "✅ Ficha registrada com sucesso!",
       ephemeral: true
     });
   }
