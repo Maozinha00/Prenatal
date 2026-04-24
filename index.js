@@ -27,7 +27,7 @@ if (!TOKEN || !CLIENT_ID || !GUILD_ID) {
   process.exit(1);
 }
 
-// 🧠 BANCO (memória)
+// 🧠 BANCO
 const prontuarios = new Map();
 
 // ================= COMANDOS =================
@@ -35,7 +35,7 @@ const commands = [
   new SlashCommandBuilder()
     .setName("painel")
     .setDescription("Abrir painel Hospital Bella")
-].map(c => c.toJSON());
+].map(cmd => cmd.toJSON());
 
 const rest = new REST({ version: "10" }).setToken(TOKEN);
 
@@ -47,7 +47,7 @@ const rest = new REST({ version: "10" }).setToken(TOKEN);
     );
     console.log("✅ Comandos registrados");
   } catch (err) {
-    console.error(err);
+    console.error("❌ Erro ao registrar comandos:", err);
   }
 })();
 
@@ -66,7 +66,7 @@ client.on("interactionCreate", async (interaction) => {
 
         const embed = new EmbedBuilder()
           .setTitle("🏥 HOSPITAL BELLA")
-          .setDescription("Selecione uma opção:")
+          .setDescription("Selecione uma opção abaixo:")
           .setColor("Orange");
 
         const row = new ActionRowBuilder().addComponents(
@@ -92,30 +92,28 @@ client.on("interactionCreate", async (interaction) => {
       if (interaction.customId === "gravidez") {
 
         const modal = new ModalBuilder()
-          .setCustomId("gravidez_1")
-          .setTitle("🩺 Gravidez (1/2)");
+          .setCustomId("form_gravidez")
+          .setTitle("🩺 Questionário Gravidez");
 
-        modal.addComponents(
+        const perguntas = [
+          "Nome completo",
+          "Última menstruação",
+          "Ciclo regular?",
+          "Dias de atraso",
+          "Sintomas"
+        ];
+
+        const inputs = perguntas.map((p, i) =>
           new ActionRowBuilder().addComponents(
             new TextInputBuilder()
-              .setCustomId("nome")
-              .setLabel("Nome completo")
+              .setCustomId(`p${i}`)
+              .setLabel(p)
               .setStyle(TextInputStyle.Short)
               .setRequired(true)
-          ),
-          new ActionRowBuilder().addComponents(
-            new TextInputBuilder()
-              .setCustomId("atraso")
-              .setLabel("Dias de atraso")
-              .setStyle(TextInputStyle.Short)
-          ),
-          new ActionRowBuilder().addComponents(
-            new TextInputBuilder()
-              .setCustomId("sintomas")
-              .setLabel("Sintomas")
-              .setStyle(TextInputStyle.Short)
           )
         );
+
+        modal.addComponents(...inputs);
 
         return interaction.showModal(modal);
       }
@@ -124,42 +122,48 @@ client.on("interactionCreate", async (interaction) => {
       if (interaction.customId === "prenatal") {
 
         const modal = new ModalBuilder()
-          .setCustomId("prenatal_form")
-          .setTitle("🤰 Pré-Natal");
+          .setCustomId("form_prenatal")
+          .setTitle("🤰 Check-in Pré-Natal");
 
-        modal.addComponents(
+        const fields = [
+          "Nome",
+          "Idade",
+          "RG",
+          "Qtd Bebês",
+          "Médico"
+        ];
+
+        const inputs = fields.map((f, i) =>
           new ActionRowBuilder().addComponents(
             new TextInputBuilder()
-              .setCustomId("nome")
-              .setLabel("Nome da paciente")
+              .setCustomId(`pre${i}`)
+              .setLabel(f)
               .setStyle(TextInputStyle.Short)
-          ),
-          new ActionRowBuilder().addComponents(
-            new TextInputBuilder()
-              .setCustomId("idade")
-              .setLabel("Idade")
-              .setStyle(TextInputStyle.Short)
+              .setRequired(true)
           )
         );
+
+        modal.addComponents(...inputs);
 
         return interaction.showModal(modal);
       }
 
-      // 🔹 CONSULTA
+      // 🔹 CONSULTAS
       if (interaction.customId.startsWith("consulta_")) {
 
-        const num = interaction.customId.split("_")[1];
+        const numero = interaction.customId.split("_")[1];
 
         const modal = new ModalBuilder()
-          .setCustomId(`consulta_${num}`)
-          .setTitle(`Consulta ${num}`);
+          .setCustomId(`registro_${numero}`)
+          .setTitle(`📝 Consulta ${numero}`);
 
         modal.addComponents(
           new ActionRowBuilder().addComponents(
             new TextInputBuilder()
               .setCustomId("info")
-              .setLabel("Informações")
+              .setLabel("Informações da consulta")
               .setStyle(TextInputStyle.Paragraph)
+              .setRequired(true)
           )
         );
 
@@ -170,23 +174,26 @@ client.on("interactionCreate", async (interaction) => {
     // ===== MODAIS =====
     if (interaction.isModalSubmit()) {
 
-      // 🔹 GRAVIDEZ 1
-      if (interaction.customId === "gravidez_1") {
+      // 🔹 TESTE GRAVIDEZ
+      if (interaction.customId === "form_gravidez") {
 
-        const nome = interaction.fields.getTextInputValue("nome");
+        const nome = interaction.fields.getTextInputValue("p0");
+
+        const resultado = Math.random() > 0.5 ? "POSITIVO" : "NEGATIVO";
 
         prontuarios.set(interaction.user.id, {
           nome,
           consultas: []
         });
 
-        const resultado = Math.random() > 0.5 ? "POSITIVO" : "NEGATIVO";
-
         return interaction.reply({
           embeds: [
             new EmbedBuilder()
-              .setTitle("🧪 Resultado")
-              .setDescription(`Paciente: **${nome}**\nResultado: **${resultado}**`)
+              .setTitle("🧪 Resultado Beta hCG")
+              .addFields(
+                { name: "Paciente", value: nome },
+                { name: "Resultado", value: resultado }
+              )
               .setColor(resultado === "POSITIVO" ? "Green" : "Red")
           ],
           components: [
@@ -201,9 +208,9 @@ client.on("interactionCreate", async (interaction) => {
       }
 
       // 🔹 PRÉ NATAL
-      if (interaction.customId === "prenatal_form") {
+      if (interaction.customId === "form_prenatal") {
 
-        const nome = interaction.fields.getTextInputValue("nome");
+        const nome = interaction.fields.getTextInputValue("pre0");
 
         prontuarios.set(interaction.user.id, {
           nome,
@@ -213,7 +220,7 @@ client.on("interactionCreate", async (interaction) => {
         return interaction.reply({
           embeds: [
             new EmbedBuilder()
-              .setTitle("🤰 PRONTUÁRIO")
+              .setTitle("🤰 PRONTUÁRIO PRÉ-NATAL")
               .setDescription(`Paciente: **${nome}**`)
               .setColor("Orange")
           ],
@@ -228,24 +235,29 @@ client.on("interactionCreate", async (interaction) => {
       }
 
       // 🔹 CONSULTA
-      if (interaction.customId.startsWith("consulta_")) {
+      if (interaction.customId.startsWith("registro_")) {
 
         const prontuario = prontuarios.get(interaction.user.id);
 
         if (!prontuario) {
           return interaction.reply({
-            content: "❌ Sem prontuário.",
+            content: "❌ Nenhum prontuário encontrado.",
             flags: 64
           });
         }
 
+        const numero = interaction.customId.split("_")[1];
         const info = interaction.fields.getTextInputValue("info");
 
-        prontuario.consultas.push(info);
+        prontuario.consultas.push({ numero, info });
 
         return interaction.reply({
-          content: "✅ Consulta registrada!",
-          flags: 64
+          embeds: [
+            new EmbedBuilder()
+              .setTitle(`📋 Consulta ${numero} registrada`)
+              .setDescription(info)
+              .setColor("Green")
+          ]
         });
       }
     }
