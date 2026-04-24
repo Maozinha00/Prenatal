@@ -17,28 +17,16 @@ const {
 
 const fs = require("fs");
 
-// ===== CONFIG =====
 const client = new Client({
   intents: [GatewayIntentBits.Guilds]
 });
 
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
-
 const CATEGORY_ID = "1492387782394515466";
 
-// ===== TEMP =====
+// ===== MEMÓRIA =====
 const temp = {};
-
-// ===== DB =====
-function loadDB() {
-  if (!fs.existsSync("database.json")) return {};
-  return JSON.parse(fs.readFileSync("database.json"));
-}
-
-function saveDB(data) {
-  fs.writeFileSync("database.json", JSON.stringify(data, null, 2));
-}
 
 // ===== HCG =====
 function resultadoHCG(valor) {
@@ -63,14 +51,13 @@ client.once("ready", async () => {
   console.log("✅ /painel registrado");
 });
 
-// ===== INTERAÇÕES =====
+// ===== INTERAÇÃO =====
 client.on("interactionCreate", async (interaction) => {
   try {
 
     // ===== PAINEL =====
     if (interaction.isChatInputCommand()) {
       if (interaction.commandName === "painel") {
-
         const row = new ActionRowBuilder().addComponents(
           new ButtonBuilder()
             .setCustomId("start")
@@ -79,151 +66,208 @@ client.on("interactionCreate", async (interaction) => {
         );
 
         return interaction.reply({
-          content: "🏥 **Hospital Bella**",
+          content: "🏥 **Hospital Bella Premium**",
           components: [row]
         });
       }
     }
 
-    // ===== MODAL 1 =====
+    // ===== START =====
     if (interaction.isButton() && interaction.customId === "start") {
 
       const modal = new ModalBuilder()
-        .setCustomId("q1")
-        .setTitle("🩺 Questionário (1/2)");
+        .setCustomId("p1")
+        .setTitle("🩺 Parte 1/4");
 
       modal.addComponents(
         new ActionRowBuilder().addComponents(
           new TextInputBuilder().setCustomId("nome").setLabel("Nome completo").setStyle(TextInputStyle.Short)
         ),
         new ActionRowBuilder().addComponents(
+          new TextInputBuilder().setCustomId("idade").setLabel("Idade").setStyle(TextInputStyle.Short)
+        ),
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder().setCustomId("rg").setLabel("RG").setStyle(TextInputStyle.Short)
+        ),
+        new ActionRowBuilder().addComponents(
           new TextInputBuilder().setCustomId("menstruacao").setLabel("Última menstruação").setStyle(TextInputStyle.Short)
         ),
         new ActionRowBuilder().addComponents(
           new TextInputBuilder().setCustomId("ciclo").setLabel("Ciclo regular?").setStyle(TextInputStyle.Short)
-        ),
-        new ActionRowBuilder().addComponents(
-          new TextInputBuilder().setCustomId("atraso").setLabel("Dias de atraso").setStyle(TextInputStyle.Short)
-        ),
-        new ActionRowBuilder().addComponents(
-          new TextInputBuilder().setCustomId("sintomas").setLabel("Sintomas").setStyle(TextInputStyle.Paragraph)
         )
       );
 
-      return await interaction.showModal(modal);
+      return interaction.showModal(modal);
     }
 
-    // ===== MODAL 1 → SALVA =====
-    if (interaction.isModalSubmit() && interaction.customId === "q1") {
+    // ===== PARTE 1 → BOTÃO =====
+    if (interaction.isModalSubmit() && interaction.customId === "p1") {
 
       temp[interaction.user.id] = {
         nome: interaction.fields.getTextInputValue("nome"),
+        idade: interaction.fields.getTextInputValue("idade"),
+        rg: interaction.fields.getTextInputValue("rg"),
         menstruacao: interaction.fields.getTextInputValue("menstruacao"),
-        ciclo: interaction.fields.getTextInputValue("ciclo"),
-        atraso: interaction.fields.getTextInputValue("atraso"),
-        sintomas: interaction.fields.getTextInputValue("sintomas")
+        ciclo: interaction.fields.getTextInputValue("ciclo")
       };
 
-      // ⚠️ IMPORTANTE → responder antes de abrir outro modal
-      await interaction.reply({
-        content: "➡️ Continuando atendimento...",
+      const btn = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId("p2")
+          .setLabel("➡️ Próxima Parte")
+          .setStyle(ButtonStyle.Primary)
+      );
+
+      return interaction.reply({
+        content: "✅ Parte 1 concluída",
+        components: [btn],
         ephemeral: true
       });
+    }
+
+    // ===== PARTE 2 =====
+    if (interaction.isButton() && interaction.customId === "p2") {
 
       const modal = new ModalBuilder()
-        .setCustomId("q2")
-        .setTitle("🩺 Questionário (2/2)");
+        .setCustomId("p2_modal")
+        .setTitle("🩺 Parte 2/4");
 
       modal.addComponents(
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder().setCustomId("atraso").setLabel("Atraso menstrual (dias)").setStyle(TextInputStyle.Short)
+        ),
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder().setCustomId("sintomas").setLabel("Sintomas").setStyle(TextInputStyle.Paragraph)
+        ),
         new ActionRowBuilder().addComponents(
           new TextInputBuilder().setCustomId("teste").setLabel("Fez teste?").setStyle(TextInputStyle.Short)
         ),
         new ActionRowBuilder().addComponents(
-          new TextInputBuilder().setCustomId("medicamento").setLabel("Usa anticoncepcional?").setStyle(TextInputStyle.Short)
+          new TextInputBuilder().setCustomId("medicamento").setLabel("Anticoncepcional?").setStyle(TextInputStyle.Short)
         ),
         new ActionRowBuilder().addComponents(
           new TextInputBuilder().setCustomId("gravidez").setLabel("Já esteve grávida?").setStyle(TextInputStyle.Short)
-        ),
+        )
+      );
+
+      return interaction.showModal(modal);
+    }
+
+    if (interaction.isModalSubmit() && interaction.customId === "p2_modal") {
+
+      Object.assign(temp[interaction.user.id], {
+        atraso: interaction.fields.getTextInputValue("atraso"),
+        sintomas: interaction.fields.getTextInputValue("sintomas"),
+        teste: interaction.fields.getTextInputValue("teste"),
+        medicamento: interaction.fields.getTextInputValue("medicamento"),
+        gravidez: interaction.fields.getTextInputValue("gravidez")
+      });
+
+      const btn = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId("p3")
+          .setLabel("➡️ Próxima Parte")
+          .setStyle(ButtonStyle.Primary)
+      );
+
+      return interaction.reply({
+        content: "✅ Parte 2 concluída",
+        components: [btn],
+        ephemeral: true
+      });
+    }
+
+    // ===== PARTE 3 =====
+    if (interaction.isButton() && interaction.customId === "p3") {
+
+      const modal = new ModalBuilder()
+        .setCustomId("p3_modal")
+        .setTitle("🩺 Parte 3/4");
+
+      modal.addComponents(
         new ActionRowBuilder().addComponents(
           new TextInputBuilder().setCustomId("dor").setLabel("Dor ou sangramento?").setStyle(TextInputStyle.Short)
+        ),
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder().setCustomId("bebes").setLabel("Quantidade de bebês").setStyle(TextInputStyle.Short)
+        ),
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder().setCustomId("sexo_bebe").setLabel("Sexo do bebê").setStyle(TextInputStyle.Short)
+        ),
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder().setCustomId("medico").setLabel("Médico responsável").setStyle(TextInputStyle.Short)
         ),
         new ActionRowBuilder().addComponents(
           new TextInputBuilder().setCustomId("exame").setLabel("Tipo de exame").setStyle(TextInputStyle.Short)
         )
       );
 
-      return interaction.followUp({
-        content: "📋 Preencha a segunda parte:",
+      return interaction.showModal(modal);
+    }
+
+    if (interaction.isModalSubmit() && interaction.customId === "p3_modal") {
+
+      Object.assign(temp[interaction.user.id], {
+        dor: interaction.fields.getTextInputValue("dor"),
+        bebes: interaction.fields.getTextInputValue("bebes"),
+        sexo: interaction.fields.getTextInputValue("sexo_bebe"),
+        medico: interaction.fields.getTextInputValue("medico"),
+        exame: interaction.fields.getTextInputValue("exame")
+      });
+
+      const btn = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId("finalizar")
+          .setLabel("✅ Finalizar Atendimento")
+          .setStyle(ButtonStyle.Success)
+      );
+
+      return interaction.reply({
+        content: "✅ Parte 3 concluída",
+        components: [btn],
         ephemeral: true
-      }).then(() => interaction.showModal(modal));
+      });
     }
 
     // ===== FINAL =====
-    if (interaction.isModalSubmit() && interaction.customId === "q2") {
+    if (interaction.isButton() && interaction.customId === "finalizar") {
 
       await interaction.deferReply({ ephemeral: true });
 
-      const dados = temp[interaction.user.id];
-      if (!dados) return interaction.editReply("❌ Refaça o formulário");
+      const d = temp[interaction.user.id];
 
       const valor = Math.floor(Math.random() * 30000) + 1;
       const resultado = resultadoHCG(valor);
 
       const canal = await interaction.guild.channels.create({
-        name: `🩺-${dados.nome}`,
+        name: `🩺-${d.nome}`,
         type: ChannelType.GuildText,
         parent: CATEGORY_ID
       });
 
-      // ===== CHECK-IN COMPLETO =====
       await canal.send(`
-# 🤰📋 CHECK-IN DE PRÉ-NATAL
+# 🤰📋 CHECK-IN COMPLETO
 
-👩 Nome: ${dados.nome}
-📅 Data: ${new Date().toLocaleDateString()}
-⏰ Hora: ${new Date().toLocaleTimeString()}
+👩 Nome: ${d.nome}
+🎂 Idade: ${d.idade}
+🆔 RG: ${d.rg}
+
+👶 Bebês: ${d.bebes}
+🚻 Sexo: ${d.sexo}
+
+👨‍⚕️ Médico: ${d.medico}
 
 ━━━━━━━━━━━━━━━━━━
 
-1️⃣ 1º Pré-natal
-2️⃣ 2º Pré-natal
-3️⃣ 3º Pré-natal
-4️⃣ 4º Pré-natal
-5️⃣ 5º Pré-natal
-6️⃣ 6º Pré-natal
-7️⃣ 7º Pré-natal
-8️⃣ 8º Pré-natal
-9️⃣ 9º Pré-natal
-🔟 10º Pré-natal
-1️⃣1️⃣ 11º Pré-natal
-1️⃣2️⃣ 12º Pré-natal
-1️⃣3️⃣ 13º Pré-natal
-1️⃣4️⃣ 14º Pré-natal
-1️⃣5️⃣ 15º Pré-natal
-1️⃣6️⃣ 16º Pré-natal
-1️⃣7️⃣ 17º Pré-natal
-`);
+🧪 RESULTADO
 
-      // ===== LAUDO =====
-      await canal.send(`
-🏥 **CENTRO MÉDICO BELLA**
-
-🧪 BETA HCG
-
-Resultado: ${valor.toLocaleString()} mUI/mL
+${valor} mUI/mL
 Conclusão: **${resultado}**
-
-━━━━━━━━━━━━━━━━━━
-
-📊 Referência:
-> Positivo: >25  
-> Intermediário: 5-25  
-> Negativo: <5  
 `);
 
       delete temp[interaction.user.id];
 
-      return interaction.editReply("✅ Atendimento finalizado!");
+      return interaction.editReply("🎉 Atendimento PREMIUM finalizado!");
     }
 
   } catch (err) {
@@ -231,5 +275,4 @@ Conclusão: **${resultado}**
   }
 });
 
-// ===== LOGIN =====
 client.login(TOKEN);
