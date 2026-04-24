@@ -26,7 +26,13 @@ const CLIENT_ID = process.env.CLIENT_ID;
 const CATEGORY_ID = "1492387782394515466";
 const ACAO_CHANNEL_ID = "1477683906642706507";
 
-// ===== TEMP =====
+// ===== VALIDAÇÃO =====
+if (!TOKEN || !CLIENT_ID) {
+  console.log("❌ Coloque TOKEN e CLIENT_ID nas variáveis");
+  process.exit(1);
+}
+
+// ===== MEMÓRIA TEMP =====
 const temp = {};
 
 // ===== BANCO =====
@@ -39,7 +45,7 @@ function saveDB(data) {
   fs.writeFileSync("database.json", JSON.stringify(data, null, 2));
 }
 
-// ===== HCG =====
+// ===== RESULTADO HCG =====
 function resultadoHCG(valor) {
   if (valor < 5) return "NEGATIVO";
   if (valor <= 25) return "INCONCLUSIVO";
@@ -50,7 +56,7 @@ function resultadoHCG(valor) {
 const commands = [
   new SlashCommandBuilder()
     .setName("painel")
-    .setDescription("Abrir sistema hospitalar")
+    .setDescription("Abrir painel hospitalar")
 ].map(c => c.toJSON());
 
 const rest = new REST({ version: "10" }).setToken(TOKEN);
@@ -69,25 +75,23 @@ client.once("ready", () => {
 client.on("interactionCreate", async (interaction) => {
   try {
 
-    // ===== PAINEL =====
-    if (interaction.isChatInputCommand()) {
-      if (interaction.commandName === "painel") {
+    // ===== /painel =====
+    if (interaction.isChatInputCommand() && interaction.commandName === "painel") {
 
-        const row = new ActionRowBuilder().addComponents(
-          new ButtonBuilder()
-            .setCustomId("start")
-            .setLabel("🤰 Iniciar Atendimento")
-            .setStyle(ButtonStyle.Success)
-        );
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId("start")
+          .setLabel("🤰 Iniciar Atendimento")
+          .setStyle(ButtonStyle.Success)
+      );
 
-        return interaction.reply({
-          content: "🏥 Hospital Bella",
-          components: [row]
-        });
-      }
+      return interaction.reply({
+        content: "🏥 Hospital Bella",
+        components: [row]
+      });
     }
 
-    // ===== MODAL 1 =====
+    // ===== ABRIR MODAL 1 =====
     if (interaction.isButton() && interaction.customId === "start") {
 
       const modal = new ModalBuilder()
@@ -115,7 +119,7 @@ client.on("interactionCreate", async (interaction) => {
       return interaction.showModal(modal);
     }
 
-    // ===== MODAL 2 =====
+    // ===== RECEBE MODAL 1 → ABRE MODAL 2 =====
     if (interaction.isModalSubmit() && interaction.customId === "q1") {
 
       const userId = interaction.user.id;
@@ -153,16 +157,16 @@ client.on("interactionCreate", async (interaction) => {
       return interaction.showModal(modal);
     }
 
-    // ===== FINAL =====
+    // ===== FINALIZA =====
     if (interaction.isModalSubmit() && interaction.customId === "q2") {
 
       await interaction.deferReply({ ephemeral: true });
 
       const userId = interaction.user.id;
-      const dados1 = temp[userId];
+      const dados = temp[userId];
 
-      if (!dados1) {
-        return interaction.editReply("❌ Refaça o formulário.");
+      if (!dados) {
+        return interaction.editReply("❌ Erro: refaça o formulário.");
       }
 
       const db = loadDB();
@@ -172,13 +176,13 @@ client.on("interactionCreate", async (interaction) => {
       const resultado = resultadoHCG(valor);
 
       const canal = await interaction.guild.channels.create({
-        name: `🩺-${dados1.nome}`,
+        name: `🩺-${dados.nome}`,
         type: ChannelType.GuildText,
         parent: CATEGORY_ID
       });
 
       db[id] = {
-        ...dados1,
+        ...dados,
         hcg: valor,
         resultado,
         consultas: [],
@@ -188,9 +192,24 @@ client.on("interactionCreate", async (interaction) => {
       saveDB(db);
       delete temp[userId];
 
-      await canal.send(`🏥 EXAME\nResultado: ${valor} mUI/mL\nConclusão: ${resultado}`);
+      // CHECK-IN
+      await canal.send(`
+# 🤰 CHECK-IN
 
-      return interaction.editReply("✅ Finalizado!");
+👩 ${dados.nome}
+📅 ${new Date().toLocaleDateString()}
+⏰ ${new Date().toLocaleTimeString()}
+`);
+
+      // EXAME
+      await canal.send(`
+🧪 EXAME BETA HCG
+
+Resultado: ${valor} mUI/mL
+Conclusão: ${resultado}
+`);
+
+      return interaction.editReply("✅ Atendimento finalizado!");
     }
 
   } catch (err) {
