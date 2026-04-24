@@ -28,12 +28,7 @@ const CLIENT_ID = process.env.CLIENT_ID;
 const CATEGORY_ID = "1492387782394515466";
 const ACAO_CHANNEL_ID = "1477683906642706507";
 
-// ===== VALIDAÇÃO =====
-if (!TOKEN || !CLIENT_ID) {
-  console.log("⚠️ TOKEN ou CLIENT_ID não definido");
-}
-
-// ===== MEMÓRIA TEMP =====
+// ===== MEMÓRIA =====
 const temp = {};
 
 // ===== BANCO =====
@@ -46,7 +41,7 @@ function saveDB(data) {
   fs.writeFileSync("database.json", JSON.stringify(data, null, 2));
 }
 
-// ===== RESULTADO HCG =====
+// ===== HCG =====
 function resultadoHCG(valor) {
   if (valor < 5) return "NEGATIVO";
   if (valor <= 25) return "INCONCLUSIVO";
@@ -54,43 +49,42 @@ function resultadoHCG(valor) {
 }
 
 // ===== ONLINE =====
-client.once("clientReady", async () => {
+client.once("ready", async () => {
   console.log(`✅ BOT ONLINE: ${client.user.tag}`);
 
-  try {
-    const commands = [
-      new SlashCommandBuilder()
-        .setName("painel")
-        .setDescription("Abrir painel hospitalar")
-    ].map(c => c.toJSON());
+  const commands = [
+    new SlashCommandBuilder()
+      .setName("painel")
+      .setDescription("Abrir sistema hospitalar")
+  ].map(c => c.toJSON());
 
-    const rest = new REST({ version: "10" }).setToken(TOKEN);
-    await rest.put(Routes.applicationCommands(CLIENT_ID), { body: commands });
+  const rest = new REST({ version: "10" }).setToken(TOKEN);
 
-    console.log("✅ /painel registrado");
-  } catch (err) {
-    console.log("❌ Erro slash:", err.message);
-  }
+  await rest.put(Routes.applicationCommands(CLIENT_ID), { body: commands });
+
+  console.log("✅ /painel registrado");
 });
 
 // ===== INTERAÇÕES =====
 client.on("interactionCreate", async (interaction) => {
   try {
 
-    // ===== /painel =====
-    if (interaction.isChatInputCommand() && interaction.commandName === "painel") {
+    // ===== PAINEL =====
+    if (interaction.isChatInputCommand()) {
+      if (interaction.commandName === "painel") {
 
-      const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-          .setCustomId("start")
-          .setLabel("🤰 Iniciar Atendimento")
-          .setStyle(ButtonStyle.Success)
-      );
+        const row = new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setCustomId("start")
+            .setLabel("🤰 Iniciar Atendimento")
+            .setStyle(ButtonStyle.Success)
+        );
 
-      return interaction.reply({
-        content: "🏥 Hospital Bella",
-        components: [row]
-      });
+        return interaction.reply({
+          content: "🏥 Hospital Bella",
+          components: [row]
+        });
+      }
     }
 
     // ===== MODAL 1 =====
@@ -121,7 +115,7 @@ client.on("interactionCreate", async (interaction) => {
       return interaction.showModal(modal);
     }
 
-    // ===== RECEBE PARTE 1 =====
+    // ===== SALVA PARTE 1 + BOTÃO CONTINUAR =====
     if (interaction.isModalSubmit() && interaction.customId === "q1") {
 
       const userId = interaction.user.id;
@@ -136,20 +130,20 @@ client.on("interactionCreate", async (interaction) => {
 
       const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
-          .setCustomId("abrir_q2")
+          .setCustomId("continuar")
           .setLabel("➡️ Continuar Questionário")
           .setStyle(ButtonStyle.Primary)
       );
 
       return interaction.reply({
-        content: "✅ Parte 1 concluída!",
+        content: "✅ Parte 1 concluída",
         components: [row],
         ephemeral: true
       });
     }
 
-    // ===== BOTÃO ABRE PARTE 2 =====
-    if (interaction.isButton() && interaction.customId === "abrir_q2") {
+    // ===== MODAL 2 =====
+    if (interaction.isButton() && interaction.customId === "continuar") {
 
       const modal = new ModalBuilder()
         .setCustomId("q2")
@@ -176,7 +170,7 @@ client.on("interactionCreate", async (interaction) => {
       return interaction.showModal(modal);
     }
 
-    // ===== FINALIZA =====
+    // ===== FINAL =====
     if (interaction.isModalSubmit() && interaction.customId === "q2") {
 
       await interaction.deferReply({ ephemeral: true });
@@ -200,25 +194,28 @@ client.on("interactionCreate", async (interaction) => {
         parent: CATEGORY_ID
       });
 
-      db[id] = {
-        ...dados,
-        hcg: valor,
-        resultado,
-        consultas: [],
-        channelId: canal.id
-      };
-
+      db[id] = { ...dados, consultas: [], channelId: canal.id };
       saveDB(db);
       delete temp[userId];
 
+      // ===== CHECK-IN COMPLETO =====
       await canal.send(`
-# 🤰 CHECK-IN
+# 🤰📋 CHECK-IN DE PRÉ-NATAL 📋🤰
 
-👩 ${dados.nome}
+## 👩 DADOS DA PACIENTE
+👩 Nome: ${dados.nome}
+
 📅 ${new Date().toLocaleDateString()}
 ⏰ ${new Date().toLocaleTimeString()}
+
+## 💕 CONSULTAS
+1º até 17º pré-natal
+
+## 🏥 PARTO
+Aguardando...
 `);
 
+      // ===== EXAME =====
       await canal.send(`
 🧪 EXAME BETA HCG
 
@@ -235,6 +232,4 @@ Conclusão: ${resultado}
 });
 
 // ===== LOGIN =====
-client.login(TOKEN).catch(err => {
-  console.log("❌ ERRO AO LOGAR:", err.message);
-});
+client.login(TOKEN);
