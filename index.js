@@ -10,22 +10,19 @@ import {
   TextInputStyle,
   SlashCommandBuilder,
   REST,
-  Routes
+  Routes,
+  ChannelType
 } from "discord.js";
 
 const client = new Client({
   intents: [GatewayIntentBits.Guilds]
 });
 
-// 🔐 ENV
+// 🔐 CONFIG
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
 const GUILD_ID = process.env.GUILD_ID;
-
-if (!TOKEN || !CLIENT_ID || !GUILD_ID) {
-  console.error("❌ Configure TOKEN / CLIENT_ID / GUILD_ID");
-  process.exit(1);
-}
+const CATEGORIA_ID = "1492387782394515466";
 
 // 🧠 BANCO
 const prontuarios = new Map();
@@ -40,15 +37,11 @@ const commands = [
 const rest = new REST({ version: "10" }).setToken(TOKEN);
 
 (async () => {
-  try {
-    await rest.put(
-      Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID),
-      { body: commands }
-    );
-    console.log("✅ Comandos registrados");
-  } catch (err) {
-    console.error("❌ Erro ao registrar comandos:", err);
-  }
+  await rest.put(
+    Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID),
+    { body: commands }
+  );
+  console.log("✅ Comandos registrados");
 })();
 
 // ================= READY =================
@@ -60,13 +53,13 @@ client.once("clientReady", () => {
 client.on("interactionCreate", async (interaction) => {
   try {
 
-    // ===== COMANDO =====
+    // ========= COMANDO =========
     if (interaction.isChatInputCommand()) {
       if (interaction.commandName === "painel") {
 
         const embed = new EmbedBuilder()
           .setTitle("🏥 HOSPITAL BELLA")
-          .setDescription("Selecione uma opção abaixo:")
+          .setDescription("Selecione uma opção:")
           .setColor("Orange");
 
         const row = new ActionRowBuilder().addComponents(
@@ -85,77 +78,107 @@ client.on("interactionCreate", async (interaction) => {
       }
     }
 
-    // ===== BOTÕES =====
+    // ========= BOTÕES =========
     if (interaction.isButton()) {
 
-      // 🔹 GRAVIDEZ
+      // ===== TESTE GRAVIDEZ =====
       if (interaction.customId === "gravidez") {
 
         const modal = new ModalBuilder()
           .setCustomId("form_gravidez")
-          .setTitle("🩺 Questionário Gravidez");
+          .setTitle("🩺 Teste de Gravidez");
 
-        const perguntas = [
-          "Nome completo",
-          "Última menstruação",
-          "Ciclo regular?",
-          "Dias de atraso",
-          "Sintomas"
-        ];
-
-        const inputs = perguntas.map((p, i) =>
+        modal.addComponents(
           new ActionRowBuilder().addComponents(
             new TextInputBuilder()
-              .setCustomId(`p${i}`)
-              .setLabel(p)
+              .setCustomId("nome")
+              .setLabel("Nome completo")
               .setStyle(TextInputStyle.Short)
               .setRequired(true)
+          ),
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+              .setCustomId("atraso")
+              .setLabel("Dias de atraso")
+              .setStyle(TextInputStyle.Short)
+          ),
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+              .setCustomId("sintomas")
+              .setLabel("Sintomas")
+              .setStyle(TextInputStyle.Short)
           )
         );
-
-        modal.addComponents(...inputs);
 
         return interaction.showModal(modal);
       }
 
-      // 🔹 PRÉ NATAL
+      // ===== PRÉ NATAL =====
       if (interaction.customId === "prenatal") {
 
         const modal = new ModalBuilder()
           .setCustomId("form_prenatal")
           .setTitle("🤰 Check-in Pré-Natal");
 
-        const fields = [
-          "Nome",
-          "Idade",
-          "RG",
-          "Qtd Bebês",
-          "Médico"
-        ];
-
-        const inputs = fields.map((f, i) =>
+        modal.addComponents(
           new ActionRowBuilder().addComponents(
             new TextInputBuilder()
-              .setCustomId(`pre${i}`)
-              .setLabel(f)
+              .setCustomId("nome")
+              .setLabel("Nome da paciente")
               .setStyle(TextInputStyle.Short)
               .setRequired(true)
+          ),
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+              .setCustomId("idade")
+              .setLabel("Idade")
+              .setStyle(TextInputStyle.Short)
+          ),
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+              .setCustomId("rg")
+              .setLabel("RG")
+              .setStyle(TextInputStyle.Short)
+          ),
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+              .setCustomId("bebes")
+              .setLabel("Quantidade de bebês")
+              .setStyle(TextInputStyle.Short)
+          ),
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+              .setCustomId("medico")
+              .setLabel("Médico responsável")
+              .setStyle(TextInputStyle.Short)
           )
         );
-
-        modal.addComponents(...inputs);
 
         return interaction.showModal(modal);
       }
 
-      // 🔹 CONSULTAS
+      // ===== CONSULTAS (COM PROGRESSÃO) =====
       if (interaction.customId.startsWith("consulta_")) {
 
-        const numero = interaction.customId.split("_")[1];
+        const numero = parseInt(interaction.customId.split("_")[1]);
+        const prontuario = prontuarios.get(interaction.user.id);
+
+        if (!prontuario) {
+          return interaction.reply({ content: "❌ Sem prontuário.", flags: 64 });
+        }
+
+        const proxima = prontuario.consultas.length + 1;
+
+        if (numero !== proxima) {
+          return interaction.reply({
+            content: `❌ Faça a consulta ${proxima} primeiro.`,
+            flags: 64
+          });
+        }
 
         const modal = new ModalBuilder()
-          .setCustomId(`registro_${numero}`)
-          .setTitle(`📝 Consulta ${numero}`);
+          .setCustomId(`consulta_modal_${numero}`)
+          .setTitle(`Consulta ${numero}`);
 
         modal.addComponents(
           new ActionRowBuilder().addComponents(
@@ -171,29 +194,20 @@ client.on("interactionCreate", async (interaction) => {
       }
     }
 
-    // ===== MODAIS =====
+    // ========= MODAIS =========
     if (interaction.isModalSubmit()) {
 
-      // 🔹 TESTE GRAVIDEZ
+      // ===== RESULTADO GRAVIDEZ =====
       if (interaction.customId === "form_gravidez") {
 
-        const nome = interaction.fields.getTextInputValue("p0");
-
+        const nome = interaction.fields.getTextInputValue("nome");
         const resultado = Math.random() > 0.5 ? "POSITIVO" : "NEGATIVO";
-
-        prontuarios.set(interaction.user.id, {
-          nome,
-          consultas: []
-        });
 
         return interaction.reply({
           embeds: [
             new EmbedBuilder()
               .setTitle("🧪 Resultado Beta hCG")
-              .addFields(
-                { name: "Paciente", value: nome },
-                { name: "Resultado", value: resultado }
-              )
+              .setDescription(`Paciente: **${nome}**\nResultado: **${resultado}**`)
               .setColor(resultado === "POSITIVO" ? "Green" : "Red")
           ],
           components: [
@@ -207,70 +221,135 @@ client.on("interactionCreate", async (interaction) => {
         });
       }
 
-      // 🔹 PRÉ NATAL
+      // ===== CRIAR PRONTUÁRIO =====
       if (interaction.customId === "form_prenatal") {
 
-        const nome = interaction.fields.getTextInputValue("pre0");
+        const nome = interaction.fields.getTextInputValue("nome");
+        const idade = interaction.fields.getTextInputValue("idade");
+        const rg = interaction.fields.getTextInputValue("rg");
+        const bebes = interaction.fields.getTextInputValue("bebes");
+        const medico = interaction.fields.getTextInputValue("medico");
+
+        const canal = await interaction.guild.channels.create({
+          name: `🩺-${nome}`,
+          type: ChannelType.GuildText,
+          parent: CATEGORIA_ID
+        });
+
+        const embed = new EmbedBuilder()
+          .setTitle("🤰📋 CHECK-IN DE PRÉ-NATAL")
+          .setColor("Orange")
+          .setDescription(`
+👩 **Nome:** ${nome}
+🎂 **Idade:** ${idade}
+🆔 **RG:** ${rg}
+
+👶 **Bebês:** ${bebes}
+
+📅 **Data:** ${new Date().toLocaleDateString("pt-BR")}
+⏰ **Hora:** ${new Date().toLocaleTimeString("pt-BR")}
+👨‍⚕️ **Médico:** ${medico}
+
+---
+
+📋 **Consultas**
+`);
+
+        const rows = [];
+        let linha = new ActionRowBuilder();
+
+        for (let i = 1; i <= 17; i++) {
+
+          linha.addComponents(
+            new ButtonBuilder()
+              .setCustomId(`consulta_${i}`)
+              .setLabel(i === 1 ? "1º" : `${i}º`)
+              .setStyle(i === 1 ? ButtonStyle.Primary : ButtonStyle.Secondary)
+          );
+
+          if (i % 5 === 0 || i === 17) {
+            rows.push(linha);
+            linha = new ActionRowBuilder();
+          }
+        }
+
+        await canal.send({ embeds: [embed], components: rows });
 
         prontuarios.set(interaction.user.id, {
           nome,
+          canalId: canal.id,
           consultas: []
         });
 
         return interaction.reply({
-          embeds: [
-            new EmbedBuilder()
-              .setTitle("🤰 PRONTUÁRIO PRÉ-NATAL")
-              .setDescription(`Paciente: **${nome}**`)
-              .setColor("Orange")
-          ],
-          components: [
-            new ActionRowBuilder().addComponents(
-              new ButtonBuilder().setCustomId("consulta_1").setLabel("1º").setStyle(ButtonStyle.Primary),
-              new ButtonBuilder().setCustomId("consulta_2").setLabel("2º").setStyle(ButtonStyle.Primary),
-              new ButtonBuilder().setCustomId("consulta_3").setLabel("3º").setStyle(ButtonStyle.Primary)
-            )
-          ]
+          content: `✅ Prontuário criado: ${canal}`,
+          flags: 64
         });
       }
 
-      // 🔹 CONSULTA
-      if (interaction.customId.startsWith("registro_")) {
+      // ===== REGISTRAR CONSULTA =====
+      if (interaction.customId.startsWith("consulta_modal_")) {
 
-        const prontuario = prontuarios.get(interaction.user.id);
-
-        if (!prontuario) {
-          return interaction.reply({
-            content: "❌ Nenhum prontuário encontrado.",
-            flags: 64
-          });
-        }
-
-        const numero = interaction.customId.split("_")[1];
+        const numero = parseInt(interaction.customId.split("_")[2]);
         const info = interaction.fields.getTextInputValue("info");
 
-        prontuario.consultas.push({ numero, info });
+        const prontuario = prontuarios.get(interaction.user.id);
+        const canal = interaction.guild.channels.cache.get(prontuario.canalId);
 
-        return interaction.reply({
+        prontuario.consultas.push(numero);
+
+        await canal.send({
           embeds: [
             new EmbedBuilder()
-              .setTitle(`📋 Consulta ${numero} registrada`)
+              .setTitle(`📋 Consulta ${numero}`)
               .setDescription(info)
               .setColor("Green")
           ]
+        });
+
+        // atualizar botões
+        const rows = [];
+        let linha = new ActionRowBuilder();
+
+        for (let i = 1; i <= 17; i++) {
+
+          let estilo = ButtonStyle.Secondary;
+          let label = `${i}º`;
+
+          if (prontuario.consultas.includes(i)) {
+            estilo = ButtonStyle.Success;
+            label = `✔ ${i}`;
+          } else if (i === prontuario.consultas.length + 1) {
+            estilo = ButtonStyle.Primary;
+          }
+
+          linha.addComponents(
+            new ButtonBuilder()
+              .setCustomId(`consulta_${i}`)
+              .setLabel(label)
+              .setStyle(estilo)
+          );
+
+          if (i % 5 === 0 || i === 17) {
+            rows.push(linha);
+            linha = new ActionRowBuilder();
+          }
+        }
+
+        const msgs = await canal.messages.fetch({ limit: 10 });
+        const botMsg = msgs.find(m => m.author.id === client.user.id);
+
+        if (botMsg) await botMsg.edit({ components: rows });
+
+        return interaction.reply({
+          content: `✅ Consulta ${numero} registrada!`,
+          flags: 64
         });
       }
     }
 
   } catch (err) {
     console.error("❌ ERRO:", err);
-
-    if (interaction.isRepliable() && !interaction.replied) {
-      interaction.reply({
-        content: "❌ Erro interno.",
-        flags: 64
-      });
-    }
   }
 });
 
