@@ -43,7 +43,7 @@ function resultadoHCG(valor) {
   return "POSITIVO";
 }
 
-// ===== ASSINATURA CRM =====
+// ===== ASSINATURA =====
 function assinaturaCRM(nome, crm) {
   return `👨‍⚕️ Dr(a). ${nome} | CRM ${crm} | 🖊️ Assinado digitalmente`;
 }
@@ -75,20 +75,9 @@ client.on("interactionCreate", async (interaction) => {
       if (interaction.commandName === "painel") {
 
         const row = new ActionRowBuilder().addComponents(
-          new ButtonBuilder()
-            .setCustomId("teste")
-            .setLabel("🧪 Teste de Gravidez")
-            .setStyle(ButtonStyle.Primary),
-
-          new ButtonBuilder()
-            .setCustomId("prenatal")
-            .setLabel("🤰 Pré-natal")
-            .setStyle(ButtonStyle.Success),
-
-          new ButtonBuilder()
-            .setCustomId("admin")
-            .setLabel("🧑‍💻 Admin")
-            .setStyle(ButtonStyle.Danger)
+          new ButtonBuilder().setCustomId("teste").setLabel("🧪 Teste").setStyle(ButtonStyle.Primary),
+          new ButtonBuilder().setCustomId("prenatal").setLabel("🤰 Pré-natal").setStyle(ButtonStyle.Success),
+          new ButtonBuilder().setCustomId("admin").setLabel("🧑‍💻 Admin").setStyle(ButtonStyle.Danger)
         );
 
         return interaction.reply({
@@ -99,7 +88,7 @@ client.on("interactionCreate", async (interaction) => {
     }
 
     // ================= TESTE =================
-    if (interaction.isButton() && interaction.customId === "teste") {
+    if (interaction.customId === "teste") {
 
       const modal = new ModalBuilder()
         .setCustomId("teste_form")
@@ -107,10 +96,10 @@ client.on("interactionCreate", async (interaction) => {
 
       modal.addComponents(
         new ActionRowBuilder().addComponents(
-          new TextInputBuilder().setCustomId("nome").setLabel("Nome completo").setStyle(TextInputStyle.Short)
+          new TextInputBuilder().setCustomId("nome").setLabel("Nome").setStyle(TextInputStyle.Short)
         ),
         new ActionRowBuilder().addComponents(
-          new TextInputBuilder().setCustomId("medico").setLabel("Médico responsável").setStyle(TextInputStyle.Short)
+          new TextInputBuilder().setCustomId("medico").setLabel("Médico").setStyle(TextInputStyle.Short)
         ),
         new ActionRowBuilder().addComponents(
           new TextInputBuilder().setCustomId("crm").setLabel("CRM").setStyle(TextInputStyle.Short)
@@ -125,21 +114,15 @@ client.on("interactionCreate", async (interaction) => {
       await interaction.deferReply({ flags: 64 });
 
       const nome = interaction.fields.getTextInputValue("nome");
-      const medicoNome = interaction.fields.getTextInputValue("medico");
+      const medico = interaction.fields.getTextInputValue("medico");
       const crm = interaction.fields.getTextInputValue("crm");
 
       const valor = Math.floor(Math.random() * 30000) + 1;
       const resultado = resultadoHCG(valor);
 
-      if (!db[nome]) {
-        db[nome] = {
-          medico: {},
-          consultas: {},
-          canal: null
-        };
-      }
+      if (!db[nome]) db[nome] = { consultas: {}, medico: {}, canal: null };
 
-      db[nome].medico = { nome: medicoNome, crm };
+      db[nome].medico = { nome: medico, crm };
 
       if (!db[nome].canal) {
         const canal = await interaction.guild.channels.create({
@@ -147,7 +130,6 @@ client.on("interactionCreate", async (interaction) => {
           type: ChannelType.GuildText,
           parent: CATEGORY_ID
         });
-
         db[nome].canal = canal.id;
       }
 
@@ -156,63 +138,93 @@ client.on("interactionCreate", async (interaction) => {
       const canal = await interaction.guild.channels.fetch(db[nome].canal);
 
       await canal.send(`
-# 🧪 PRONTUÁRIO - TESTE DE GRAVIDEZ
+🧪 TESTE DE GRAVIDEZ
 
 👩 Paciente: ${nome}
-👨‍⚕️ Médico: ${medicoNome} (CRM ${crm})
+👨‍⚕️ Médico: ${medico} (CRM ${crm})
 
-🧪 HCG: ${valor} mUI/mL
+📊 HCG: ${valor}
 📌 Resultado: ${resultado}
 
-${assinaturaCRM(medicoNome, crm)}
+${assinaturaCRM(medico, crm)}
 `);
 
-      return interaction.editReply("✅ Teste registrado com sucesso!");
+      return interaction.editReply("✔ Teste registrado");
     }
 
-    // ================= PRÉ NATAL =================
-    if (interaction.isButton() && interaction.customId === "prenatal") {
+    // ================= PRÉ-NATAL CHECK-IN =================
+    if (interaction.customId === "prenatal") {
 
       const modal = new ModalBuilder()
         .setCustomId("prenatal_form")
-        .setTitle("🤰 Pré-natal");
+        .setTitle("🤰 CHECK-IN PRÉ-NATAL");
 
-      modal.addComponents(
-        new ActionRowBuilder().addComponents(
-          new TextInputBuilder().setCustomId("nome").setLabel("Nome da paciente").setStyle(TextInputStyle.Short)
-        )
-      );
+      const campos = [
+        ["nome", "Nome da mamãe"],
+        ["idade", "Idade"],
+        ["rg", "RG"],
+        ["bebes", "Qtd bebês (1 ou 2)"],
+        ["sexo", "Sexo do bebê"],
+        ["medico", "Médico responsável"],
+        ["parto_dia", "Dia do parto"],
+        ["parto_hora", "Hora do parto"],
+        ["parto_medico", "Médico do parto"]
+      ];
+
+      campos.forEach(c => {
+        modal.addComponents(
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+              .setCustomId(c[0])
+              .setLabel(c[1])
+              .setStyle(TextInputStyle.Short)
+          )
+        );
+      });
 
       return interaction.showModal(modal);
     }
 
+    // ================= SALVAR PRÉ-NATAL =================
     if (interaction.customId === "prenatal_form") {
 
       await interaction.deferReply({ flags: 64 });
 
-      const nome = interaction.fields.getTextInputValue("nome");
+      const data = {
+        nome: interaction.fields.getTextInputValue("nome"),
+        idade: interaction.fields.getTextInputValue("idade"),
+        rg: interaction.fields.getTextInputValue("rg"),
+        bebes: interaction.fields.getTextInputValue("bebes"),
+        sexo: interaction.fields.getTextInputValue("sexo"),
+        medico: interaction.fields.getTextInputValue("medico"),
+        parto_dia: interaction.fields.getTextInputValue("parto_dia"),
+        parto_hora: interaction.fields.getTextInputValue("parto_hora"),
+        parto_medico: interaction.fields.getTextInputValue("parto_medico"),
+      };
 
-      if (!db[nome]) {
-        db[nome] = {
-          medico: {},
+      if (!db[data.nome]) {
+        db[data.nome] = {
           consultas: {},
-          canal: null
+          medico: { nome: data.medico, crm: "" },
+          canal: null,
+          prenatal: data
         };
+      } else {
+        db[data.nome].prenatal = data;
       }
 
-      if (!db[nome].canal) {
+      if (!db[data.nome].canal) {
         const canal = await interaction.guild.channels.create({
-          name: `🤰-${nome}`,
+          name: `🤰-${data.nome}`,
           type: ChannelType.GuildText,
           parent: CATEGORY_ID
         });
-
-        db[nome].canal = canal.id;
+        db[data.nome].canal = canal.id;
       }
 
       saveDB(db);
 
-      const canal = await interaction.guild.channels.fetch(db[nome].canal);
+      const canal = await interaction.guild.channels.fetch(db[data.nome].canal);
 
       const rows = [];
       let row = new ActionRowBuilder();
@@ -220,9 +232,9 @@ ${assinaturaCRM(medicoNome, crm)}
       for (let i = 1; i <= 17; i++) {
         row.addComponents(
           new ButtonBuilder()
-            .setCustomId(`consulta_${nome}_${i}`)
-            .setLabel(`${i}ª consulta`)
-            .setStyle(ButtonStyle.Primary)
+            .setCustomId(`consulta_${data.nome}_${i}`)
+            .setLabel(`👍 ${i}`)
+            .setStyle(ButtonStyle.Success)
         );
 
         if (i % 5 === 0 || i === 17) {
@@ -232,11 +244,29 @@ ${assinaturaCRM(medicoNome, crm)}
       }
 
       await canal.send({
-        content: `🤰 PRÉ-NATAL INICIADO - ${nome}`,
+        content: `
+# 🤰📋 PRÉ-NATAL COMPLETO
+
+👩 Nome: ${data.nome}
+🎂 Idade: ${data.idade}
+🆔 RG: ${data.rg}
+
+👶 Bebês: ${data.bebes}
+🚻 Sexo: ${data.sexo}
+
+👨‍⚕️ Médico: ${data.medico}
+
+📅 Parto: ${data.parto_dia} às ${data.parto_hora}
+🏥 Equipe: ${data.parto_medico}
+
+━━━━━━━━━━━━━━
+
+💖 CONSULTAS 1–17 (clique para evolução)
+`,
         components: rows
       });
 
-      return interaction.editReply("✅ Pré-natal iniciado!");
+      return interaction.editReply("✔ Pré-natal criado com sucesso!");
     }
 
     // ================= CONSULTAS =================
@@ -244,11 +274,47 @@ ${assinaturaCRM(medicoNome, crm)}
 
       const [, nome, num] = interaction.customId.split("_");
 
+      const modal = new ModalBuilder()
+        .setCustomId(`consulta_form_${nome}_${num}`)
+        .setTitle(`🤰 Consulta ${num}`);
+
+      const perguntas = [
+        "Evolução",
+        "Sintomas",
+        "Observações"
+      ];
+
+      perguntas.forEach((p, i) => {
+        modal.addComponents(
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+              .setCustomId(`q${i}`)
+              .setLabel(p)
+              .setStyle(TextInputStyle.Short)
+          )
+        );
+      });
+
+      return interaction.showModal(modal);
+    }
+
+    // ================= SALVAR CONSULTA =================
+    if (interaction.customId.startsWith("consulta_form_")) {
+
+      await interaction.deferReply({ flags: 64 });
+
+      const [, , nome, num] = interaction.customId.split("_");
+
+      const respostas = [];
+      interaction.fields.fields.forEach(v => respostas.push(v.value));
+
       if (!db[nome]) return;
 
       db[nome].consultas[num] = {
         data: new Date().toISOString(),
-        medico: db[nome].medico
+        respostas,
+        medico: db[nome].medico,
+        like: true
       };
 
       saveDB(db);
@@ -256,60 +322,40 @@ ${assinaturaCRM(medicoNome, crm)}
       const canal = await interaction.guild.channels.fetch(db[nome].canal);
 
       await canal.send(`
-🤰 CONSULTA ${num}
-👩 Paciente: ${nome}
-👨‍⚕️ Médico: ${db[nome].medico.nome}
-🏷️ CRM: ${db[nome].medico.crm}
+🤰 CONSULTA ${num} 👍
 
-🖊️ ${assinaturaCRM(db[nome].medico.nome, db[nome].medico.crm)}
+👩 ${nome}
+👨‍⚕️ ${db[nome].medico.nome}
+
+📋 ${respostas.join(" | ")}
 `);
 
-      return interaction.reply({ content: `✔ Consulta ${num} registrada`, ephemeral: true });
+      return interaction.editReply("✔ Consulta registrada");
     }
 
     // ================= ADMIN =================
     if (interaction.customId === "admin") {
 
-      const db = loadDB();
-
       const embed = new EmbedBuilder()
-        .setTitle("🧑‍💻 PAINEL ADMIN")
-        .setDescription(`👩 Pacientes ativos: ${Object.keys(db).length}`);
+        .setTitle("🧑‍💻 ADMIN HOSPITAL")
+        .setDescription(`Pacientes: ${Object.keys(db).length}`);
 
       const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-          .setCustomId("listar")
-          .setLabel("📋 Listar pacientes")
-          .setStyle(ButtonStyle.Primary),
-
-        new ButtonBuilder()
-          .setCustomId("resetdb")
-          .setLabel("🗑️ Reset DB")
-          .setStyle(ButtonStyle.Danger)
+        new ButtonBuilder().setCustomId("listar").setLabel("📋 Listar").setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId("resetdb").setLabel("🗑️ Reset").setStyle(ButtonStyle.Danger)
       );
 
       return interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
     }
 
-    // ================= LISTAR =================
     if (interaction.customId === "listar") {
-
-      const db = loadDB();
-
-      const lista = Object.keys(db)
-        .map((p, i) => `**${i + 1}.** ${p}`)
-        .join("\n") || "Nenhum paciente";
-
-      return interaction.reply({
-        content: `📋 PACIENTES:\n\n${lista}`,
-        ephemeral: true
-      });
+      const lista = Object.keys(db).map((p, i) => `${i + 1}. ${p}`).join("\n") || "Vazio";
+      return interaction.reply({ content: lista, ephemeral: true });
     }
 
-    // ================= RESET =================
     if (interaction.customId === "resetdb") {
       fs.writeFileSync("database.json", "{}");
-      return interaction.reply({ content: "🗑️ Banco resetado!", ephemeral: true });
+      return interaction.reply({ content: "Resetado", ephemeral: true });
     }
 
   } catch (err) {
