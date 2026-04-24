@@ -1,3 +1,5 @@
+require("dotenv").config();
+
 const {
   Client,
   GatewayIntentBits,
@@ -15,8 +17,6 @@ const {
 
 const fs = require("fs");
 
-console.log("🚀 Iniciando bot...");
-
 // ===== CONFIG =====
 const client = new Client({
   intents: [GatewayIntentBits.Guilds]
@@ -26,12 +26,11 @@ const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
 
 const CATEGORY_ID = "1492387782394515466";
-const ACAO_CHANNEL_ID = "1477683906642706507";
 
-// ===== MEMÓRIA =====
+// ===== TEMP =====
 const temp = {};
 
-// ===== BANCO =====
+// ===== DB =====
 function loadDB() {
   if (!fs.existsSync("database.json")) return {};
   return JSON.parse(fs.readFileSync("database.json"));
@@ -48,18 +47,17 @@ function resultadoHCG(valor) {
   return "POSITIVO";
 }
 
-// ===== ONLINE =====
+// ===== READY =====
 client.once("ready", async () => {
-  console.log(`✅ BOT ONLINE: ${client.user.tag}`);
+  console.log(`✅ ONLINE: ${client.user.tag}`);
 
   const commands = [
     new SlashCommandBuilder()
       .setName("painel")
-      .setDescription("Abrir sistema hospitalar")
+      .setDescription("Abrir painel hospitalar")
   ].map(c => c.toJSON());
 
   const rest = new REST({ version: "10" }).setToken(TOKEN);
-
   await rest.put(Routes.applicationCommands(CLIENT_ID), { body: commands });
 
   console.log("✅ /painel registrado");
@@ -81,7 +79,7 @@ client.on("interactionCreate", async (interaction) => {
         );
 
         return interaction.reply({
-          content: "🏥 Hospital Bella",
+          content: "🏥 **Hospital Bella**",
           components: [row]
         });
       }
@@ -105,22 +103,20 @@ client.on("interactionCreate", async (interaction) => {
           new TextInputBuilder().setCustomId("ciclo").setLabel("Ciclo regular?").setStyle(TextInputStyle.Short)
         ),
         new ActionRowBuilder().addComponents(
-          new TextInputBuilder().setCustomId("atraso").setLabel("Atraso menstrual").setStyle(TextInputStyle.Short)
+          new TextInputBuilder().setCustomId("atraso").setLabel("Dias de atraso").setStyle(TextInputStyle.Short)
         ),
         new ActionRowBuilder().addComponents(
           new TextInputBuilder().setCustomId("sintomas").setLabel("Sintomas").setStyle(TextInputStyle.Paragraph)
         )
       );
 
-      return interaction.showModal(modal);
+      return await interaction.showModal(modal);
     }
 
-    // ===== SALVA PARTE 1 + BOTÃO CONTINUAR =====
+    // ===== MODAL 1 → SALVA =====
     if (interaction.isModalSubmit() && interaction.customId === "q1") {
 
-      const userId = interaction.user.id;
-
-      temp[userId] = {
+      temp[interaction.user.id] = {
         nome: interaction.fields.getTextInputValue("nome"),
         menstruacao: interaction.fields.getTextInputValue("menstruacao"),
         ciclo: interaction.fields.getTextInputValue("ciclo"),
@@ -128,22 +124,11 @@ client.on("interactionCreate", async (interaction) => {
         sintomas: interaction.fields.getTextInputValue("sintomas")
       };
 
-      const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-          .setCustomId("continuar")
-          .setLabel("➡️ Continuar Questionário")
-          .setStyle(ButtonStyle.Primary)
-      );
-
-      return interaction.reply({
-        content: "✅ Parte 1 concluída",
-        components: [row],
+      // ⚠️ IMPORTANTE → responder antes de abrir outro modal
+      await interaction.reply({
+        content: "➡️ Continuando atendimento...",
         ephemeral: true
       });
-    }
-
-    // ===== MODAL 2 =====
-    if (interaction.isButton() && interaction.customId === "continuar") {
 
       const modal = new ModalBuilder()
         .setCustomId("q2")
@@ -154,7 +139,7 @@ client.on("interactionCreate", async (interaction) => {
           new TextInputBuilder().setCustomId("teste").setLabel("Fez teste?").setStyle(TextInputStyle.Short)
         ),
         new ActionRowBuilder().addComponents(
-          new TextInputBuilder().setCustomId("medicamento").setLabel("Anticoncepcional?").setStyle(TextInputStyle.Short)
+          new TextInputBuilder().setCustomId("medicamento").setLabel("Usa anticoncepcional?").setStyle(TextInputStyle.Short)
         ),
         new ActionRowBuilder().addComponents(
           new TextInputBuilder().setCustomId("gravidez").setLabel("Já esteve grávida?").setStyle(TextInputStyle.Short)
@@ -167,7 +152,10 @@ client.on("interactionCreate", async (interaction) => {
         )
       );
 
-      return interaction.showModal(modal);
+      return interaction.followUp({
+        content: "📋 Preencha a segunda parte:",
+        ephemeral: true
+      }).then(() => interaction.showModal(modal));
     }
 
     // ===== FINAL =====
@@ -175,15 +163,8 @@ client.on("interactionCreate", async (interaction) => {
 
       await interaction.deferReply({ ephemeral: true });
 
-      const userId = interaction.user.id;
-      const dados = temp[userId];
-
-      if (!dados) {
-        return interaction.editReply("❌ Refazer formulário.");
-      }
-
-      const db = loadDB();
-      const id = Date.now().toString();
+      const dados = temp[interaction.user.id];
+      if (!dados) return interaction.editReply("❌ Refaça o formulário");
 
       const valor = Math.floor(Math.random() * 30000) + 1;
       const resultado = resultadoHCG(valor);
@@ -194,34 +175,53 @@ client.on("interactionCreate", async (interaction) => {
         parent: CATEGORY_ID
       });
 
-      db[id] = { ...dados, consultas: [], channelId: canal.id };
-      saveDB(db);
-      delete temp[userId];
-
       // ===== CHECK-IN COMPLETO =====
       await canal.send(`
-# 🤰📋 CHECK-IN DE PRÉ-NATAL 📋🤰
+# 🤰📋 CHECK-IN DE PRÉ-NATAL
 
-## 👩 DADOS DA PACIENTE
 👩 Nome: ${dados.nome}
+📅 Data: ${new Date().toLocaleDateString()}
+⏰ Hora: ${new Date().toLocaleTimeString()}
 
-📅 ${new Date().toLocaleDateString()}
-⏰ ${new Date().toLocaleTimeString()}
+━━━━━━━━━━━━━━━━━━
 
-## 💕 CONSULTAS
-1º até 17º pré-natal
-
-## 🏥 PARTO
-Aguardando...
+1️⃣ 1º Pré-natal
+2️⃣ 2º Pré-natal
+3️⃣ 3º Pré-natal
+4️⃣ 4º Pré-natal
+5️⃣ 5º Pré-natal
+6️⃣ 6º Pré-natal
+7️⃣ 7º Pré-natal
+8️⃣ 8º Pré-natal
+9️⃣ 9º Pré-natal
+🔟 10º Pré-natal
+1️⃣1️⃣ 11º Pré-natal
+1️⃣2️⃣ 12º Pré-natal
+1️⃣3️⃣ 13º Pré-natal
+1️⃣4️⃣ 14º Pré-natal
+1️⃣5️⃣ 15º Pré-natal
+1️⃣6️⃣ 16º Pré-natal
+1️⃣7️⃣ 17º Pré-natal
 `);
 
-      // ===== EXAME =====
+      // ===== LAUDO =====
       await canal.send(`
-🧪 EXAME BETA HCG
+🏥 **CENTRO MÉDICO BELLA**
 
-Resultado: ${valor} mUI/mL
-Conclusão: ${resultado}
+🧪 BETA HCG
+
+Resultado: ${valor.toLocaleString()} mUI/mL
+Conclusão: **${resultado}**
+
+━━━━━━━━━━━━━━━━━━
+
+📊 Referência:
+> Positivo: >25  
+> Intermediário: 5-25  
+> Negativo: <5  
 `);
+
+      delete temp[interaction.user.id];
 
       return interaction.editReply("✅ Atendimento finalizado!");
     }
