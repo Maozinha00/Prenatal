@@ -1,5 +1,7 @@
-require("dotenv").config();
+// ===== OPCIONAL DOTENV (não quebra se não tiver instalado) =====
+try { require("dotenv").config(); } catch {}
 
+// ===== IMPORTS =====
 const {
   Client,
   GatewayIntentBits,
@@ -27,6 +29,12 @@ const CLIENT_ID = process.env.CLIENT_ID;
 
 const CATEGORY_ID = "1492387782394515466";
 const ACAO_CHANNEL_ID = "1477683906642706507";
+
+// ===== VALIDAÇÃO =====
+if (!TOKEN || !CLIENT_ID) {
+  console.log("❌ TOKEN ou CLIENT_ID não definido!");
+  process.exit(1);
+}
 
 // ===== BANCO =====
 function loadDB() {
@@ -63,7 +71,7 @@ const rest = new REST({ version: "10" }).setToken(TOKEN);
     await rest.put(Routes.applicationCommands(CLIENT_ID), { body: commands });
     console.log("✅ /painel registrado");
   } catch (err) {
-    console.log(err);
+    console.log("Erro slash:", err);
   }
 })();
 
@@ -76,8 +84,9 @@ client.once("ready", () => {
 client.on("interactionCreate", async (interaction) => {
   try {
 
-    // PAINEL
+    // ===== PAINEL =====
     if (interaction.isChatInputCommand() && interaction.commandName === "painel") {
+
       const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
           .setCustomId("iniciar")
@@ -91,8 +100,9 @@ client.on("interactionCreate", async (interaction) => {
       });
     }
 
-    // INICIAR
+    // ===== INICIAR =====
     if (interaction.isButton() && interaction.customId === "iniciar") {
+
       const modal = new ModalBuilder()
         .setCustomId("inicio")
         .setTitle("Cadastro da Paciente");
@@ -106,14 +116,21 @@ client.on("interactionCreate", async (interaction) => {
         ),
         new ActionRowBuilder().addComponents(
           new TextInputBuilder().setCustomId("rg").setLabel("RG").setStyle(TextInputStyle.Short)
+        ),
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder().setCustomId("bebes").setLabel("Qtd bebês (1 ou 2)").setStyle(TextInputStyle.Short)
+        ),
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder().setCustomId("sexo").setLabel("Sexo do bebê").setStyle(TextInputStyle.Short)
         )
       );
 
       return interaction.showModal(modal);
     }
 
-    // SALVAR
+    // ===== SALVAR =====
     if (interaction.isModalSubmit() && interaction.customId === "inicio") {
+
       await interaction.deferReply({ ephemeral: true });
 
       const db = loadDB();
@@ -129,13 +146,15 @@ client.on("interactionCreate", async (interaction) => {
         nome: interaction.fields.getTextInputValue("nome"),
         idade: interaction.fields.getTextInputValue("idade"),
         rg: interaction.fields.getTextInputValue("rg"),
+        bebes: interaction.fields.getTextInputValue("bebes"),
+        sexo: interaction.fields.getTextInputValue("sexo"),
         consultas: [],
         channelId: canal.id
       };
 
       saveDB(db);
 
-      // CHECK-IN
+      // ===== CHECK-IN COMPLETO =====
       let lista = "";
       for (let i = 1; i <= 17; i++) {
         lista += `${i}º Pré-natal\n`;
@@ -144,21 +163,32 @@ client.on("interactionCreate", async (interaction) => {
       const checkin = `
 # 🤰📋 CHECK-IN DE PRÉ-NATAL 📋🤰
 
+## 👩 DADOS DA PACIENTE
 👩 Nome: ${db[id].nome}
 🎂 Idade: ${db[id].idade}
 🆔 RG: ${db[id].rg}
 
+👶 Bebês: ${db[id].bebes}
+🚻 Sexo: ${db[id].sexo}
+
 📅 Data: ${new Date().toLocaleDateString()}
-⏰ Hora: ${new Date().toLocaleTimeString()}
+⏰ Horário: ${new Date().toLocaleTimeString()}
+👨‍⚕️ Médico: ${interaction.user}
 
 ────────────────────────────
 
+## 💕 CONSULTAS
 ${lista}
+
+## 🏥 DADOS DO PARTO
+📅 Dia:
+⏰ Hora:
+👨‍⚕️ Médico:
 `;
 
       await canal.send(checkin);
 
-      // BOTÕES
+      // ===== BOTÕES =====
       const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
           .setCustomId(`consulta_${id}`)
@@ -177,6 +207,7 @@ ${lista}
       );
 
       const canalAcoes = interaction.guild.channels.cache.get(ACAO_CHANNEL_ID);
+
       if (canalAcoes) {
         await canalAcoes.send({
           content: `👩 Paciente: ${db[id].nome}`,
@@ -187,10 +218,13 @@ ${lista}
       return interaction.editReply("✅ Paciente registrada!");
     }
 
-    // CONSULTA
+    // ===== CONSULTA =====
     if (interaction.isButton() && interaction.customId.startsWith("consulta_")) {
+
       const id = interaction.customId.split("_")[1];
       const db = loadDB();
+
+      if (!db[id]) return interaction.reply({ content: "❌ Paciente não encontrada", ephemeral: true });
 
       db[id].consultas.push(new Date().toLocaleDateString());
       saveDB(db);
@@ -201,13 +235,14 @@ ${lista}
       });
     }
 
-    // EXAME
+    // ===== EXAME =====
     if (interaction.isButton() && interaction.customId.startsWith("exame_")) {
+
       const id = interaction.customId.split("_")[1];
 
       const modal = new ModalBuilder()
         .setCustomId(`exame_${id}`)
-        .setTitle("Beta HCG");
+        .setTitle("Resultado Beta HCG");
 
       modal.addComponents(
         new ActionRowBuilder().addComponents(
@@ -222,50 +257,63 @@ ${lista}
     }
 
     if (interaction.isModalSubmit() && interaction.customId.startsWith("exame_")) {
+
       await interaction.deferReply({ ephemeral: true });
 
       const id = interaction.customId.split("_")[1];
       const db = loadDB();
+
+      if (!db[id]) return interaction.editReply("❌ Paciente não encontrada");
 
       const valor = Number(interaction.fields.getTextInputValue("valor"));
       const resultado = resultadoHCG(valor);
 
       const canal = interaction.guild.channels.cache.get(db[id].channelId);
 
-      await canal.send(`
-# 🧪 EXAME
+      if (canal) {
+        await canal.send(`
+# 🧪 EXAME LABORATORIAL
 
-Resultado: ${valor} mUI/mL  
-Conclusão: ${resultado}
+📊 Resultado: ${valor} mUI/mL  
+📌 Conclusão: ${resultado}
 `);
+      }
 
       return interaction.editReply("✅ Exame registrado!");
     }
 
-    // PARTO
+    // ===== PARTO =====
     if (interaction.isButton() && interaction.customId.startsWith("parto_")) {
+
       await interaction.deferReply({ ephemeral: true });
 
       const id = interaction.customId.split("_")[1];
       const db = loadDB();
-      const p = db[id];
 
+      if (!db[id]) return interaction.editReply("❌ Paciente não encontrada");
+
+      const p = db[id];
       const canal = interaction.guild.channels.cache.get(p.channelId);
 
-      await canal.send(`
+      if (canal) {
+        await canal.send(`
 # 🏥 PARTO FINALIZADO
 
-👩 ${p.nome}
+👩 Mãe: ${p.nome}
+👶 Bebês: ${p.bebes}
+🚻 Sexo: ${p.sexo}
+
 📅 ${new Date().toLocaleDateString()}
 ⏰ ${new Date().toLocaleTimeString()}
 👨‍⚕️ ${interaction.user}
 `);
+      }
 
       return interaction.editReply("🏥 Parto concluído!");
     }
 
   } catch (err) {
-    console.log(err);
+    console.log("ERRO:", err);
   }
 });
 
