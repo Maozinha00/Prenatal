@@ -15,6 +15,8 @@ const {
 
 const fs = require("fs");
 
+console.log("🚀 Iniciando bot...");
+
 // ===== CONFIG =====
 const client = new Client({
   intents: [GatewayIntentBits.Guilds]
@@ -26,10 +28,9 @@ const CLIENT_ID = process.env.CLIENT_ID;
 const CATEGORY_ID = "1492387782394515466";
 const ACAO_CHANNEL_ID = "1477683906642706507";
 
-// ===== VALIDAÇÃO =====
+// ===== VALIDAÇÃO (NÃO DERRUBA O BOT) =====
 if (!TOKEN || !CLIENT_ID) {
-  console.log("❌ Coloque TOKEN e CLIENT_ID nas variáveis");
-  process.exit(1);
+  console.log("⚠️ TOKEN ou CLIENT_ID não definido (verifique variáveis)");
 }
 
 // ===== MEMÓRIA TEMP =====
@@ -52,23 +53,26 @@ function resultadoHCG(valor) {
   return "POSITIVO";
 }
 
-// ===== SLASH =====
-const commands = [
-  new SlashCommandBuilder()
-    .setName("painel")
-    .setDescription("Abrir painel hospitalar")
-].map(c => c.toJSON());
-
-const rest = new REST({ version: "10" }).setToken(TOKEN);
-
-(async () => {
-  await rest.put(Routes.applicationCommands(CLIENT_ID), { body: commands });
-  console.log("✅ /painel registrado");
-})();
-
 // ===== ONLINE =====
-client.once("ready", () => {
-  console.log(`🏥 ONLINE: ${client.user.tag}`);
+client.once("ready", async () => {
+  console.log(`✅ BOT ONLINE: ${client.user.tag}`);
+
+  // REGISTRA SLASH
+  try {
+    const commands = [
+      new SlashCommandBuilder()
+        .setName("painel")
+        .setDescription("Abrir painel hospitalar")
+    ].map(c => c.toJSON());
+
+    const rest = new REST({ version: "10" }).setToken(TOKEN);
+
+    await rest.put(Routes.applicationCommands(CLIENT_ID), { body: commands });
+
+    console.log("✅ /painel registrado");
+  } catch (err) {
+    console.log("❌ Erro ao registrar slash:", err.message);
+  }
 });
 
 // ===== INTERAÇÕES =====
@@ -119,7 +123,7 @@ client.on("interactionCreate", async (interaction) => {
       return interaction.showModal(modal);
     }
 
-    // ===== RECEBE MODAL 1 → ABRE MODAL 2 =====
+    // ===== MODAL 1 → MODAL 2 =====
     if (interaction.isModalSubmit() && interaction.customId === "q1") {
 
       const userId = interaction.user.id;
@@ -217,4 +221,7 @@ Conclusão: ${resultado}
   }
 });
 
-client.login(TOKEN);
+// ===== LOGIN (FINAL) =====
+client.login(TOKEN).catch(err => {
+  console.log("❌ ERRO AO LOGAR:", err.message);
+});
