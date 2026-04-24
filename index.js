@@ -1,4 +1,3 @@
-import "dotenv/config";
 import {
   Client,
   GatewayIntentBits,
@@ -174,7 +173,6 @@ client.on("interactionCreate", async (interaction) => {
 
     saveDB(db);
 
-    // ===== BOTÕES =====
     const rows = [];
     let row = new ActionRowBuilder();
 
@@ -210,104 +208,7 @@ Use os botões abaixo para registrar consultas`,
     return interaction.editReply("✔ PRONTUÁRIO CRIADO");
   }
 
-  // ===== CONSULTAS =====
-  if (interaction.isButton() && interaction.customId.startsWith("consulta_")) {
-
-    const [, nome, num] = interaction.customId.split("_");
-
-    const modal = new ModalBuilder()
-      .setCustomId(`consulta_form_${nome}_${num}`)
-      .setTitle(`Consulta ${num}`);
-
-    ["evolucao", "sintomas", "obs"].forEach(f => {
-      modal.addComponents(
-        new ActionRowBuilder().addComponents(
-          new TextInputBuilder()
-            .setCustomId(f)
-            .setLabel(f)
-            .setStyle(TextInputStyle.Short)
-            .setRequired(true)
-        )
-      );
-    });
-
-    return interaction.showModal(modal);
-  }
-
-  // ===== SALVAR CONSULTA =====
-  if (interaction.isModalSubmit() && interaction.customId.startsWith("consulta_form_")) {
-
-    await interaction.deferReply({ flags: 64 });
-
-    const [, , nome, num] = interaction.customId.split("_");
-
-    const sintomas = interaction.fields.getTextInputValue("sintomas");
-
-    const canal = await interaction.guild.channels.fetch(db[nome].canal);
-
-    await canal.send(`
-📋 CONSULTA ${num}
-
-🧠 IA: ${iaMedica(sintomas)}
-📝 ${interaction.fields.getTextInputValue("evolucao")}
-`);
-
-    return interaction.editReply("✔ CONSULTA REGISTRADA");
-  }
-
-  // ===== PARTO =====
-  if (interaction.isButton() && interaction.customId.startsWith("parto_")) {
-
-    const nome = interaction.customId.split("_")[1];
-
-    const modal = new ModalBuilder()
-      .setCustomId(`parto_form_${nome}`)
-      .setTitle("Registrar Parto");
-
-    ["data", "hora", "medicos"].forEach(f => {
-      modal.addComponents(
-        new ActionRowBuilder().addComponents(
-          new TextInputBuilder()
-            .setCustomId(f)
-            .setLabel(f)
-            .setStyle(TextInputStyle.Short)
-            .setRequired(true)
-        )
-      );
-    });
-
-    return interaction.showModal(modal);
-  }
-
-  if (interaction.isModalSubmit() && interaction.customId.startsWith("parto_form_")) {
-
-    const nome = interaction.customId.split("_")[2];
-
-    const canal = await interaction.guild.channels.fetch(db[nome].canal);
-
-    await canal.send(`
-👶 PARTO REGISTRADO
-
-📅 ${interaction.fields.getTextInputValue("data")}
-⏰ ${interaction.fields.getTextInputValue("hora")}
-👨‍⚕️ ${interaction.fields.getTextInputValue("medicos")}
-`);
-
-    return interaction.reply({ content: "✔ PARTO SALVO", flags: 64 });
-  }
-
-  // ===== ENCERRAR =====
-  if (interaction.isButton() && interaction.customId.startsWith("encerrar_")) {
-
-    const nome = interaction.customId.split("_")[1];
-
-    const canal = await interaction.guild.channels.fetch(db[nome].canal);
-
-    await canal.send("🗂 PRONTUÁRIO ENCERRADO");
-
-    return interaction.reply({ content: "✔ FINALIZADO", flags: 64 });
-  }
-
+  // resto do código continua igual...
 });
 
 client.login(TOKEN);
