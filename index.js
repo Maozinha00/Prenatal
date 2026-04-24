@@ -27,9 +27,12 @@ const CATEGORY_ID = "1492387782394515466";
 const ACAO_CHANNEL_ID = "1477683906642706507";
 
 if (!TOKEN || !CLIENT_ID) {
-  console.log("❌ Configure TOKEN e CLIENT_ID");
+  console.log("❌ Configure TOKEN e CLIENT_ID nas variáveis");
   process.exit(1);
 }
+
+// ===== MEMÓRIA TEMP =====
+const temp = {};
 
 // ===== BANCO =====
 function loadDB() {
@@ -120,7 +123,9 @@ client.on("interactionCreate", async (interaction) => {
     // ===== QUESTIONÁRIO 2 =====
     if (interaction.isModalSubmit() && interaction.customId === "q1") {
 
-      const dados = {
+      const userId = interaction.user.id;
+
+      temp[userId] = {
         nome: interaction.fields.getTextInputValue("nome"),
         menstruacao: interaction.fields.getTextInputValue("menstruacao"),
         ciclo: interaction.fields.getTextInputValue("ciclo"),
@@ -129,7 +134,7 @@ client.on("interactionCreate", async (interaction) => {
       };
 
       const modal = new ModalBuilder()
-        .setCustomId("q2_" + JSON.stringify(dados))
+        .setCustomId("q2")
         .setTitle("🩺 Questionário (2/2)");
 
       modal.addComponents(
@@ -154,11 +159,17 @@ client.on("interactionCreate", async (interaction) => {
     }
 
     // ===== FINAL =====
-    if (interaction.isModalSubmit() && interaction.customId.startsWith("q2_")) {
+    if (interaction.isModalSubmit() && interaction.customId === "q2") {
 
       await interaction.deferReply({ ephemeral: true });
 
-      const dados1 = JSON.parse(interaction.customId.replace("q2_", ""));
+      const userId = interaction.user.id;
+      const dados1 = temp[userId];
+
+      if (!dados1) {
+        return interaction.editReply("❌ Erro: refaça o formulário.");
+      }
+
       const db = loadDB();
       const id = Date.now().toString();
 
@@ -185,6 +196,7 @@ client.on("interactionCreate", async (interaction) => {
       };
 
       saveDB(db);
+      delete temp[userId];
 
       // ===== CHECK-IN =====
       let lista = "";
@@ -214,33 +226,33 @@ Data: ${new Date().toLocaleDateString()}
 ━━━━━━━━━━━━━━━━━━━━━━
 
 🧪 **EXAME LABORATORIAL**
-**BETA - HCG QUANTITATIVO**
+BETA - HCG QUANTITATIVO
 
 Material: Soro  
 Resultado: ${valor.toLocaleString()} mUI/mL  
 
-✔️ **Conclusão: ${resultado}**
+✔️ Conclusão: **${resultado}**
 
 ━━━━━━━━━━━━━━━━━━━━━━
 
-📊 **VALORES DE REFERÊNCIA**
-Positivo: > 25  
-Intermediário: 5 a 25  
-Negativo: < 5  
+📊 VALORES DE REFERÊNCIA
+• Positivo: > 25  
+• Intermediário: 5 a 25  
+• Negativo: < 5  
 
 ━━━━━━━━━━━━━━━━━━━━━━
 
-⚠️ **OBSERVAÇÕES**
-Pode indicar gestação.
+⚠️ OBSERVAÇÕES
+Resultado compatível com análise clínica.
 
 ━━━━━━━━━━━━━━━━━━━━━━
 `);
 
       // ===== BOTÕES =====
       const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId(`consulta_${id}`).setLabel("Consulta").setStyle(ButtonStyle.Primary),
-        new ButtonBuilder().setCustomId(`exame_${id}`).setLabel("Novo Exame").setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId(`parto_${id}`).setLabel("Parto").setStyle(ButtonStyle.Danger)
+        new ButtonBuilder().setCustomId(`consulta_${id}`).setLabel("➕ Consulta").setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId(`exame_${id}`).setLabel("🧪 Novo Exame").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId(`parto_${id}`).setLabel("🏥 Parto").setStyle(ButtonStyle.Danger)
       );
 
       const canalAcoes = interaction.guild.channels.cache.get(ACAO_CHANNEL_ID);
@@ -252,7 +264,7 @@ Pode indicar gestação.
         });
       }
 
-      return interaction.editReply("✅ Atendimento finalizado!");
+      return interaction.editReply("✅ Atendimento concluído!");
     }
 
     // ===== CONSULTA =====
@@ -264,14 +276,17 @@ Pode indicar gestação.
       saveDB(db);
 
       return interaction.reply({
-        content: `Consulta ${db[id].consultas.length}/17`,
+        content: `📋 Consulta ${db[id].consultas.length}/17 registrada`,
         ephemeral: true
       });
     }
 
     // ===== PARTO =====
     if (interaction.isButton() && interaction.customId.startsWith("parto_")) {
-      await interaction.reply({ content: "🏥 Parto realizado!", ephemeral: true });
+      await interaction.reply({
+        content: "🏥 Parto realizado com sucesso!",
+        ephemeral: true
+      });
     }
 
   } catch (err) {
