@@ -15,7 +15,6 @@ const {
 } = require("discord.js");
 
 const fs = require("fs");
-const PDFDocument = require("pdfkit");
 
 // ===== CLIENT =====
 const client = new Client({
@@ -37,7 +36,7 @@ function saveDB(data) {
   fs.writeFileSync("database.json", JSON.stringify(data, null, 2));
 }
 
-// ===== RESULTADO HCG =====
+// ===== HCG =====
 function resultadoHCG(valor) {
   if (valor < 5) return "NEGATIVO";
   if (valor <= 25) return "INCONCLUSIVO";
@@ -47,41 +46,6 @@ function resultadoHCG(valor) {
 // ===== ASSINATURA CRM =====
 function assinaturaCRM(nome, crm) {
   return `👨‍⚕️ Dr(a). ${nome} | CRM ${crm} | 🖊️ Assinado digitalmente`;
-}
-
-// ===== PDF =====
-function gerarPDF(nome, data) {
-  const doc = new PDFDocument();
-  const filePath = `./${nome}-prontuario.pdf`;
-
-  doc.pipe(fs.createWriteStream(filePath));
-
-  doc.fontSize(20).text("🏥 PRONTUÁRIO MÉDICO", { align: "center" });
-  doc.moveDown();
-
-  doc.fontSize(14).text(`Paciente: ${nome}`);
-  doc.text(`Data: ${new Date().toLocaleDateString()}`);
-  doc.moveDown();
-
-  if (data.medico) {
-    doc.text(`Médico responsável: ${data.medico.nome}`);
-    doc.text(`CRM: ${data.medico.crm}`);
-    doc.moveDown();
-  }
-
-  doc.text("📋 HISTÓRICO DE CONSULTAS:");
-  doc.moveDown();
-
-  for (const c in data.consultas) {
-    const cons = data.consultas[c];
-    doc.text(`Consulta ${c} - ${new Date(cons.data).toLocaleString()}`);
-    doc.text(`Médico: ${cons.medico?.nome || "N/A"} (${cons.medico?.crm || "N/A"})`);
-    doc.moveDown();
-  }
-
-  doc.end();
-
-  return filePath;
 }
 
 // ===== READY =====
@@ -168,7 +132,11 @@ client.on("interactionCreate", async (interaction) => {
       const resultado = resultadoHCG(valor);
 
       if (!db[nome]) {
-        db[nome] = { consultas: {}, medico: {}, canal: null };
+        db[nome] = {
+          medico: {},
+          consultas: {},
+          canal: null
+        };
       }
 
       db[nome].medico = { nome: medicoNome, crm };
@@ -188,16 +156,18 @@ client.on("interactionCreate", async (interaction) => {
       const canal = await interaction.guild.channels.fetch(db[nome].canal);
 
       await canal.send(`
-# 🧪 TESTE DE GRAVIDEZ
+# 🧪 PRONTUÁRIO - TESTE DE GRAVIDEZ
 
 👩 Paciente: ${nome}
-${assinaturaCRM(medicoNome, crm)}
+👨‍⚕️ Médico: ${medicoNome} (CRM ${crm})
 
-🧪 Resultado HCG: ${valor} mUI/mL
-📌 Conclusão: ${resultado}
+🧪 HCG: ${valor} mUI/mL
+📌 Resultado: ${resultado}
+
+${assinaturaCRM(medicoNome, crm)}
 `);
 
-      return interaction.editReply("✅ Prontuário atualizado!");
+      return interaction.editReply("✅ Teste registrado com sucesso!");
     }
 
     // ================= PRÉ NATAL =================
@@ -223,7 +193,11 @@ ${assinaturaCRM(medicoNome, crm)}
       const nome = interaction.fields.getTextInputValue("nome");
 
       if (!db[nome]) {
-        db[nome] = { consultas: {}, medico: {}, canal: null };
+        db[nome] = {
+          medico: {},
+          consultas: {},
+          canal: null
+        };
       }
 
       if (!db[nome].canal) {
@@ -258,7 +232,7 @@ ${assinaturaCRM(medicoNome, crm)}
       }
 
       await canal.send({
-        content: `🤰 PRÉ-NATAL DE ${nome}`,
+        content: `🤰 PRÉ-NATAL INICIADO - ${nome}`,
         components: rows
       });
 
@@ -283,8 +257,10 @@ ${assinaturaCRM(medicoNome, crm)}
 
       await canal.send(`
 🤰 CONSULTA ${num}
-👩 ${nome}
-👨‍⚕️ ${db[nome].medico.nome} (${db[nome].medico.crm})
+👩 Paciente: ${nome}
+👨‍⚕️ Médico: ${db[nome].medico.nome}
+🏷️ CRM: ${db[nome].medico.crm}
+
 🖊️ ${assinaturaCRM(db[nome].medico.nome, db[nome].medico.crm)}
 `);
 
@@ -294,27 +270,43 @@ ${assinaturaCRM(medicoNome, crm)}
     // ================= ADMIN =================
     if (interaction.customId === "admin") {
 
+      const db = loadDB();
+
       const embed = new EmbedBuilder()
-        .setTitle("🧑‍💻 ADMIN HOSPITAL")
-        .setDescription(`Pacientes: ${Object.keys(db).length}`);
+        .setTitle("🧑‍💻 PAINEL ADMIN")
+        .setDescription(`👩 Pacientes ativos: ${Object.keys(db).length}`);
 
       const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId("listar").setLabel("📋 Listar").setStyle(ButtonStyle.Primary),
-        new ButtonBuilder().setCustomId("pdfall").setLabel("📄 PDF").setStyle(ButtonStyle.Success),
-        new ButtonBuilder().setCustomId("resetdb").setLabel("🗑️ Reset").setStyle(ButtonStyle.Danger)
+        new ButtonBuilder()
+          .setCustomId("listar")
+          .setLabel("📋 Listar pacientes")
+          .setStyle(ButtonStyle.Primary),
+
+        new ButtonBuilder()
+          .setCustomId("resetdb")
+          .setLabel("🗑️ Reset DB")
+          .setStyle(ButtonStyle.Danger)
       );
 
       return interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
     }
 
-    if (interaction.customId === "pdfall") {
+    // ================= LISTAR =================
+    if (interaction.customId === "listar") {
 
-      const nome = Object.keys(db)[0];
-      const file = gerarPDF(nome, db[nome]);
+      const db = loadDB();
 
-      return interaction.reply({ content: "📄 PDF gerado!", files: [file], ephemeral: true });
+      const lista = Object.keys(db)
+        .map((p, i) => `**${i + 1}.** ${p}`)
+        .join("\n") || "Nenhum paciente";
+
+      return interaction.reply({
+        content: `📋 PACIENTES:\n\n${lista}`,
+        ephemeral: true
+      });
     }
 
+    // ================= RESET =================
     if (interaction.customId === "resetdb") {
       fs.writeFileSync("database.json", "{}");
       return interaction.reply({ content: "🗑️ Banco resetado!", ephemeral: true });
