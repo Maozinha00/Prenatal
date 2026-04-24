@@ -28,9 +28,9 @@ const CLIENT_ID = process.env.CLIENT_ID;
 const CATEGORY_ID = "1492387782394515466";
 const ACAO_CHANNEL_ID = "1477683906642706507";
 
-// ===== VALIDAÇÃO (NÃO DERRUBA O BOT) =====
+// ===== VALIDAÇÃO =====
 if (!TOKEN || !CLIENT_ID) {
-  console.log("⚠️ TOKEN ou CLIENT_ID não definido (verifique variáveis)");
+  console.log("⚠️ TOKEN ou CLIENT_ID não definido");
 }
 
 // ===== MEMÓRIA TEMP =====
@@ -54,10 +54,9 @@ function resultadoHCG(valor) {
 }
 
 // ===== ONLINE =====
-client.once("ready", async () => {
+client.once("clientReady", async () => {
   console.log(`✅ BOT ONLINE: ${client.user.tag}`);
 
-  // REGISTRA SLASH
   try {
     const commands = [
       new SlashCommandBuilder()
@@ -66,12 +65,11 @@ client.once("ready", async () => {
     ].map(c => c.toJSON());
 
     const rest = new REST({ version: "10" }).setToken(TOKEN);
-
     await rest.put(Routes.applicationCommands(CLIENT_ID), { body: commands });
 
     console.log("✅ /painel registrado");
   } catch (err) {
-    console.log("❌ Erro ao registrar slash:", err.message);
+    console.log("❌ Erro slash:", err.message);
   }
 });
 
@@ -95,7 +93,7 @@ client.on("interactionCreate", async (interaction) => {
       });
     }
 
-    // ===== ABRIR MODAL 1 =====
+    // ===== MODAL 1 =====
     if (interaction.isButton() && interaction.customId === "start") {
 
       const modal = new ModalBuilder()
@@ -123,7 +121,7 @@ client.on("interactionCreate", async (interaction) => {
       return interaction.showModal(modal);
     }
 
-    // ===== MODAL 1 → MODAL 2 =====
+    // ===== RECEBE PARTE 1 =====
     if (interaction.isModalSubmit() && interaction.customId === "q1") {
 
       const userId = interaction.user.id;
@@ -135,6 +133,23 @@ client.on("interactionCreate", async (interaction) => {
         atraso: interaction.fields.getTextInputValue("atraso"),
         sintomas: interaction.fields.getTextInputValue("sintomas")
       };
+
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId("abrir_q2")
+          .setLabel("➡️ Continuar Questionário")
+          .setStyle(ButtonStyle.Primary)
+      );
+
+      return interaction.reply({
+        content: "✅ Parte 1 concluída!",
+        components: [row],
+        ephemeral: true
+      });
+    }
+
+    // ===== BOTÃO ABRE PARTE 2 =====
+    if (interaction.isButton() && interaction.customId === "abrir_q2") {
 
       const modal = new ModalBuilder()
         .setCustomId("q2")
@@ -170,7 +185,7 @@ client.on("interactionCreate", async (interaction) => {
       const dados = temp[userId];
 
       if (!dados) {
-        return interaction.editReply("❌ Erro: refaça o formulário.");
+        return interaction.editReply("❌ Refazer formulário.");
       }
 
       const db = loadDB();
@@ -196,7 +211,6 @@ client.on("interactionCreate", async (interaction) => {
       saveDB(db);
       delete temp[userId];
 
-      // CHECK-IN
       await canal.send(`
 # 🤰 CHECK-IN
 
@@ -205,7 +219,6 @@ client.on("interactionCreate", async (interaction) => {
 ⏰ ${new Date().toLocaleTimeString()}
 `);
 
-      // EXAME
       await canal.send(`
 🧪 EXAME BETA HCG
 
@@ -221,7 +234,7 @@ Conclusão: ${resultado}
   }
 });
 
-// ===== LOGIN (FINAL) =====
+// ===== LOGIN =====
 client.login(TOKEN).catch(err => {
   console.log("❌ ERRO AO LOGAR:", err.message);
 });
