@@ -26,12 +26,7 @@ const CLIENT_ID = process.env.CLIENT_ID;
 const CATEGORY_ID = "1492387782394515466";
 const ACAO_CHANNEL_ID = "1477683906642706507";
 
-if (!TOKEN || !CLIENT_ID) {
-  console.log("❌ Configure TOKEN e CLIENT_ID nas variáveis");
-  process.exit(1);
-}
-
-// ===== MEMÓRIA TEMP =====
+// ===== TEMP =====
 const temp = {};
 
 // ===== BANCO =====
@@ -92,7 +87,7 @@ client.on("interactionCreate", async (interaction) => {
       }
     }
 
-    // ===== QUESTIONÁRIO 1 =====
+    // ===== MODAL 1 =====
     if (interaction.isButton() && interaction.customId === "start") {
 
       const modal = new ModalBuilder()
@@ -120,7 +115,7 @@ client.on("interactionCreate", async (interaction) => {
       return interaction.showModal(modal);
     }
 
-    // ===== QUESTIONÁRIO 2 =====
+    // ===== MODAL 2 =====
     if (interaction.isModalSubmit() && interaction.customId === "q1") {
 
       const userId = interaction.user.id;
@@ -167,7 +162,7 @@ client.on("interactionCreate", async (interaction) => {
       const dados1 = temp[userId];
 
       if (!dados1) {
-        return interaction.editReply("❌ Erro: refaça o formulário.");
+        return interaction.editReply("❌ Refaça o formulário.");
       }
 
       const db = loadDB();
@@ -184,11 +179,6 @@ client.on("interactionCreate", async (interaction) => {
 
       db[id] = {
         ...dados1,
-        teste: interaction.fields.getTextInputValue("teste"),
-        medicamento: interaction.fields.getTextInputValue("medicamento"),
-        gravidez: interaction.fields.getTextInputValue("gravidez"),
-        dor: interaction.fields.getTextInputValue("dor"),
-        exame: interaction.fields.getTextInputValue("exame"),
         hcg: valor,
         resultado,
         consultas: [],
@@ -198,95 +188,9 @@ client.on("interactionCreate", async (interaction) => {
       saveDB(db);
       delete temp[userId];
 
-      // ===== CHECK-IN =====
-      let lista = "";
-      for (let i = 1; i <= 17; i++) lista += `${i}º Pré-natal\n`;
+      await canal.send(`🏥 EXAME\nResultado: ${valor} mUI/mL\nConclusão: ${resultado}`);
 
-      await canal.send(`
-# 🤰📋 CHECK-IN DE PRÉ-NATAL
-
-👩 ${dados1.nome}
-📅 ${new Date().toLocaleDateString()}
-⏰ ${new Date().toLocaleTimeString()}
-
-${lista}
-`);
-
-      // ===== LAUDO =====
-      await canal.send(`
-🏥 **CENTRO MÉDICO BELLA**
-Diagnóstico Laboratorial | Saúde da Mulher
-
-━━━━━━━━━━━━━━━━━━━━━━
-
-📋 **DADOS DA PACIENTE**
-Nome: ${dados1.nome}
-Data: ${new Date().toLocaleDateString()}
-
-━━━━━━━━━━━━━━━━━━━━━━
-
-🧪 **EXAME LABORATORIAL**
-BETA - HCG QUANTITATIVO
-
-Material: Soro  
-Resultado: ${valor.toLocaleString()} mUI/mL  
-
-✔️ Conclusão: **${resultado}**
-
-━━━━━━━━━━━━━━━━━━━━━━
-
-📊 VALORES DE REFERÊNCIA
-• Positivo: > 25  
-• Intermediário: 5 a 25  
-• Negativo: < 5  
-
-━━━━━━━━━━━━━━━━━━━━━━
-
-⚠️ OBSERVAÇÕES
-Resultado compatível com análise clínica.
-
-━━━━━━━━━━━━━━━━━━━━━━
-`);
-
-      // ===== BOTÕES =====
-      const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId(`consulta_${id}`).setLabel("➕ Consulta").setStyle(ButtonStyle.Primary),
-        new ButtonBuilder().setCustomId(`exame_${id}`).setLabel("🧪 Novo Exame").setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId(`parto_${id}`).setLabel("🏥 Parto").setStyle(ButtonStyle.Danger)
-      );
-
-      const canalAcoes = interaction.guild.channels.cache.get(ACAO_CHANNEL_ID);
-
-      if (canalAcoes) {
-        await canalAcoes.send({
-          content: `👩 Paciente: ${dados1.nome}`,
-          components: [row]
-        });
-      }
-
-      return interaction.editReply("✅ Atendimento concluído!");
-    }
-
-    // ===== CONSULTA =====
-    if (interaction.isButton() && interaction.customId.startsWith("consulta_")) {
-      const id = interaction.customId.split("_")[1];
-      const db = loadDB();
-
-      db[id].consultas.push(Date.now());
-      saveDB(db);
-
-      return interaction.reply({
-        content: `📋 Consulta ${db[id].consultas.length}/17 registrada`,
-        ephemeral: true
-      });
-    }
-
-    // ===== PARTO =====
-    if (interaction.isButton() && interaction.customId.startsWith("parto_")) {
-      await interaction.reply({
-        content: "🏥 Parto realizado com sucesso!",
-        ephemeral: true
-      });
+      return interaction.editReply("✅ Finalizado!");
     }
 
   } catch (err) {
