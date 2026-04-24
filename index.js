@@ -15,16 +15,28 @@ const {
 
 const fs = require("fs");
 
+// ===== CONFIG =====
 const client = new Client({
   intents: [GatewayIntentBits.Guilds]
 });
 
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
+
 const CATEGORY_ID = "1492387782394515466";
 
-// ===== MEMÓRIA =====
+// ===== TEMP =====
 const temp = {};
+
+// ===== BANCO =====
+function loadDB() {
+  if (!fs.existsSync("database.json")) return {};
+  return JSON.parse(fs.readFileSync("database.json"));
+}
+
+function saveDB(data) {
+  fs.writeFileSync("database.json", JSON.stringify(data, null, 2));
+}
 
 // ===== HCG =====
 function resultadoHCG(valor) {
@@ -34,8 +46,8 @@ function resultadoHCG(valor) {
 }
 
 // ===== READY =====
-client.once("ready", async () => {
-  console.log(`✅ ONLINE: ${client.user.tag}`);
+client.once("clientReady", async () => {
+  console.log(`✅ BOT ONLINE: ${client.user.tag}`);
 
   const commands = [
     new SlashCommandBuilder()
@@ -49,151 +61,54 @@ client.once("ready", async () => {
   console.log("✅ /painel registrado");
 });
 
-// ===== INTERAÇÃO =====
+// ===== INTERAÇÕES =====
 client.on("interactionCreate", async (interaction) => {
   try {
 
     // ===== PAINEL =====
     if (interaction.isChatInputCommand()) {
       if (interaction.commandName === "painel") {
+
         const row = new ActionRowBuilder().addComponents(
           new ButtonBuilder()
-            .setCustomId("start")
-            .setLabel("🤰 Iniciar Atendimento")
+            .setCustomId("teste")
+            .setLabel("🧪 Teste de Gravidez")
+            .setStyle(ButtonStyle.Primary),
+
+          new ButtonBuilder()
+            .setCustomId("prenatal")
+            .setLabel("🤰 Pré-natal")
             .setStyle(ButtonStyle.Success)
         );
 
         return interaction.reply({
-          content: "🏥 **Hospital Bella Premium**",
+          content: "🏥 **Hospital Bella - Sistema**",
           components: [row]
         });
       }
     }
 
-    // ===== START =====
-    if (interaction.isButton() && interaction.customId === "start") {
+    // =========================
+    // 🧪 TESTE DE GRAVIDEZ
+    // =========================
+    if (interaction.isButton() && interaction.customId === "teste") {
 
       const modal = new ModalBuilder()
-        .setCustomId("p1")
-        .setTitle("🩺 Parte 1/4");
+        .setCustomId("teste_form")
+        .setTitle("🧪 Teste de Gravidez");
 
       modal.addComponents(
         new ActionRowBuilder().addComponents(
           new TextInputBuilder().setCustomId("nome").setLabel("Nome completo").setStyle(TextInputStyle.Short)
         ),
         new ActionRowBuilder().addComponents(
-          new TextInputBuilder().setCustomId("idade").setLabel("Idade").setStyle(TextInputStyle.Short)
-        ),
-        new ActionRowBuilder().addComponents(
-          new TextInputBuilder().setCustomId("rg").setLabel("RG").setStyle(TextInputStyle.Short)
-        ),
-        new ActionRowBuilder().addComponents(
           new TextInputBuilder().setCustomId("menstruacao").setLabel("Última menstruação").setStyle(TextInputStyle.Short)
         ),
         new ActionRowBuilder().addComponents(
-          new TextInputBuilder().setCustomId("ciclo").setLabel("Ciclo regular?").setStyle(TextInputStyle.Short)
-        )
-      );
-
-      return interaction.showModal(modal);
-    }
-
-    // ===== PARTE 1 → BOTÃO =====
-    if (interaction.isModalSubmit() && interaction.customId === "p1") {
-
-      temp[interaction.user.id] = {
-        nome: interaction.fields.getTextInputValue("nome"),
-        idade: interaction.fields.getTextInputValue("idade"),
-        rg: interaction.fields.getTextInputValue("rg"),
-        menstruacao: interaction.fields.getTextInputValue("menstruacao"),
-        ciclo: interaction.fields.getTextInputValue("ciclo")
-      };
-
-      const btn = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-          .setCustomId("p2")
-          .setLabel("➡️ Próxima Parte")
-          .setStyle(ButtonStyle.Primary)
-      );
-
-      return interaction.reply({
-        content: "✅ Parte 1 concluída",
-        components: [btn],
-        ephemeral: true
-      });
-    }
-
-    // ===== PARTE 2 =====
-    if (interaction.isButton() && interaction.customId === "p2") {
-
-      const modal = new ModalBuilder()
-        .setCustomId("p2_modal")
-        .setTitle("🩺 Parte 2/4");
-
-      modal.addComponents(
-        new ActionRowBuilder().addComponents(
-          new TextInputBuilder().setCustomId("atraso").setLabel("Atraso menstrual (dias)").setStyle(TextInputStyle.Short)
+          new TextInputBuilder().setCustomId("atraso").setLabel("Atraso menstrual").setStyle(TextInputStyle.Short)
         ),
         new ActionRowBuilder().addComponents(
           new TextInputBuilder().setCustomId("sintomas").setLabel("Sintomas").setStyle(TextInputStyle.Paragraph)
-        ),
-        new ActionRowBuilder().addComponents(
-          new TextInputBuilder().setCustomId("teste").setLabel("Fez teste?").setStyle(TextInputStyle.Short)
-        ),
-        new ActionRowBuilder().addComponents(
-          new TextInputBuilder().setCustomId("medicamento").setLabel("Anticoncepcional?").setStyle(TextInputStyle.Short)
-        ),
-        new ActionRowBuilder().addComponents(
-          new TextInputBuilder().setCustomId("gravidez").setLabel("Já esteve grávida?").setStyle(TextInputStyle.Short)
-        )
-      );
-
-      return interaction.showModal(modal);
-    }
-
-    if (interaction.isModalSubmit() && interaction.customId === "p2_modal") {
-
-      Object.assign(temp[interaction.user.id], {
-        atraso: interaction.fields.getTextInputValue("atraso"),
-        sintomas: interaction.fields.getTextInputValue("sintomas"),
-        teste: interaction.fields.getTextInputValue("teste"),
-        medicamento: interaction.fields.getTextInputValue("medicamento"),
-        gravidez: interaction.fields.getTextInputValue("gravidez")
-      });
-
-      const btn = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-          .setCustomId("p3")
-          .setLabel("➡️ Próxima Parte")
-          .setStyle(ButtonStyle.Primary)
-      );
-
-      return interaction.reply({
-        content: "✅ Parte 2 concluída",
-        components: [btn],
-        ephemeral: true
-      });
-    }
-
-    // ===== PARTE 3 =====
-    if (interaction.isButton() && interaction.customId === "p3") {
-
-      const modal = new ModalBuilder()
-        .setCustomId("p3_modal")
-        .setTitle("🩺 Parte 3/4");
-
-      modal.addComponents(
-        new ActionRowBuilder().addComponents(
-          new TextInputBuilder().setCustomId("dor").setLabel("Dor ou sangramento?").setStyle(TextInputStyle.Short)
-        ),
-        new ActionRowBuilder().addComponents(
-          new TextInputBuilder().setCustomId("bebes").setLabel("Quantidade de bebês").setStyle(TextInputStyle.Short)
-        ),
-        new ActionRowBuilder().addComponents(
-          new TextInputBuilder().setCustomId("sexo_bebe").setLabel("Sexo do bebê").setStyle(TextInputStyle.Short)
-        ),
-        new ActionRowBuilder().addComponents(
-          new TextInputBuilder().setCustomId("medico").setLabel("Médico responsável").setStyle(TextInputStyle.Short)
         ),
         new ActionRowBuilder().addComponents(
           new TextInputBuilder().setCustomId("exame").setLabel("Tipo de exame").setStyle(TextInputStyle.Short)
@@ -203,69 +118,107 @@ client.on("interactionCreate", async (interaction) => {
       return interaction.showModal(modal);
     }
 
-    if (interaction.isModalSubmit() && interaction.customId === "p3_modal") {
+    if (interaction.isModalSubmit() && interaction.customId === "teste_form") {
 
-      Object.assign(temp[interaction.user.id], {
-        dor: interaction.fields.getTextInputValue("dor"),
-        bebes: interaction.fields.getTextInputValue("bebes"),
-        sexo: interaction.fields.getTextInputValue("sexo_bebe"),
-        medico: interaction.fields.getTextInputValue("medico"),
-        exame: interaction.fields.getTextInputValue("exame")
-      });
+      await interaction.deferReply({ flags: 64 });
 
-      const btn = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-          .setCustomId("finalizar")
-          .setLabel("✅ Finalizar Atendimento")
-          .setStyle(ButtonStyle.Success)
-      );
-
-      return interaction.reply({
-        content: "✅ Parte 3 concluída",
-        components: [btn],
-        ephemeral: true
-      });
-    }
-
-    // ===== FINAL =====
-    if (interaction.isButton() && interaction.customId === "finalizar") {
-
-      await interaction.deferReply({ ephemeral: true });
-
-      const d = temp[interaction.user.id];
+      const nome = interaction.fields.getTextInputValue("nome");
 
       const valor = Math.floor(Math.random() * 30000) + 1;
       const resultado = resultadoHCG(valor);
 
       const canal = await interaction.guild.channels.create({
-        name: `🩺-${d.nome}`,
+        name: `🧪-${nome}`,
         type: ChannelType.GuildText,
         parent: CATEGORY_ID
       });
 
       await canal.send(`
-# 🤰📋 CHECK-IN COMPLETO
+# 🩺 QUESTIONÁRIO – TESTE DE GRAVIDEZ
 
-👩 Nome: ${d.nome}
-🎂 Idade: ${d.idade}
-🆔 RG: ${d.rg}
+👩 Nome: ${nome}
+📅 Data: ${new Date().toLocaleDateString()}
 
-👶 Bebês: ${d.bebes}
-🚻 Sexo: ${d.sexo}
+━━━━━━━━━━━━━━━━━━━━━━
 
-👨‍⚕️ Médico: ${d.medico}
+🧪 EXAME BETA HCG
 
-━━━━━━━━━━━━━━━━━━
+Resultado: ${valor} mUI/mL  
+Conclusão: ${resultado}
 
-🧪 RESULTADO
-
-${valor} mUI/mL
-Conclusão: **${resultado}**
+━━━━━━━━━━━━━━━━━━━━━━
 `);
 
-      delete temp[interaction.user.id];
+      return interaction.editReply("✅ Teste realizado com sucesso!");
+    }
 
-      return interaction.editReply("🎉 Atendimento PREMIUM finalizado!");
+    // =========================
+    // 🤰 PRÉ-NATAL
+    // =========================
+    if (interaction.isButton() && interaction.customId === "prenatal") {
+
+      const modal = new ModalBuilder()
+        .setCustomId("prenatal_form")
+        .setTitle("🤰 Pré-natal");
+
+      modal.addComponents(
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder().setCustomId("nome").setLabel("Nome da mamãe").setStyle(TextInputStyle.Short)
+        ),
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder().setCustomId("idade").setLabel("Idade").setStyle(TextInputStyle.Short)
+        ),
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder().setCustomId("rg").setLabel("RG").setStyle(TextInputStyle.Short)
+        ),
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder().setCustomId("bebes").setLabel("Quantidade de bebês").setStyle(TextInputStyle.Short)
+        ),
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder().setCustomId("sexo").setLabel("Sexo do bebê").setStyle(TextInputStyle.Short)
+        )
+      );
+
+      return interaction.showModal(modal);
+    }
+
+    if (interaction.isModalSubmit() && interaction.customId === "prenatal_form") {
+
+      await interaction.deferReply({ flags: 64 });
+
+      const nome = interaction.fields.getTextInputValue("nome");
+
+      const canal = await interaction.guild.channels.create({
+        name: `🤰-${nome}`,
+        type: ChannelType.GuildText,
+        parent: CATEGORY_ID
+      });
+
+      let lista = "";
+      for (let i = 1; i <= 17; i++) lista += `${i}º Pré-natal\n`;
+
+      await canal.send(`
+# 🤰📋 CHECK-IN DE PRÉ-NATAL 📋🤰
+
+👩 Nome: ${nome}
+
+📅 Data: ${new Date().toLocaleDateString()}
+⏰ Hora: ${new Date().toLocaleTimeString()}
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+${lista}
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+🏥 PARTO
+
+📅 Dia:
+⏰ Hora:
+👨‍⚕️ Médico:
+`);
+
+      return interaction.editReply("✅ Pré-natal iniciado!");
     }
 
   } catch (err) {
@@ -273,4 +226,5 @@ Conclusão: **${resultado}**
   }
 });
 
+// ===== LOGIN =====
 client.login(TOKEN);
